@@ -27,6 +27,14 @@ go.work.sum
 # env file
 .env
 
+# Python stuff
+*__pycache__
+/uv.lock
+
 # Editor/IDE
 .idea/
 .vscode/
+
+# Binary and artifacts
+/ubuntu-release
+/ubuntu_release.egg-info

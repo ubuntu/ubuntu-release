@@ -9,3 +9,7 @@ very much the future, and not everything is clearly defined yet. If you want
 to submit feature requests, please make sure you already understand Ubuntu's
 release mechanisms, and have a strong use-case in mind to show that it needs to
 be taken into account early.
+
+### ubuntu-release go binary
+
+`ubuntu-release` is a Go utility to facilitate the Ubuntu Release activities.
