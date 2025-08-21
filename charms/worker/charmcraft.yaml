@@ -5,7 +5,7 @@ type: charm
 title: Ubuntu Release - worker
 summary: The Worker is the main entry point to run our Temporal workflows
 description: |
-  TODO
+  This is a k8s charm that needs to be deployed along with a Temporal server.
 links:
   source:
     - https://github.com/ubuntu/ubuntu-release/tree/main/charms/worker
@@ -22,16 +22,6 @@ parts:
 # General configuration documentation: https://juju.is/docs/sdk/config
 config:
   options:
-    repo-url:
-      description: |
-        Address of the git repository to clone
-      default: "https://github.com/ubuntu/ubuntu-release"
-      type: string
-    repo-branch:
-      description: |
-        Branch of the git repository to check out
-      default: "main"
-      type: string
     log-level:
       description: |
         Configures the log level.
@@ -39,3 +29,19 @@ config:
         Acceptable values are: "info", "debug", "warning", "error" and "critical"
       default: "info"
       type: string
+
+assumes:
+  - juju >= 3.1
+  - k8s-api
+
+containers:
+  ubuntu-release-worker:
+    resource: ubuntu-release-worker-image
+    # mounts:
+    # - storage: logs
+    #   location: /logs
+
+resources:
+  ubuntu-release-worker-image:
+    type: oci-image
+    description: OCI image for the Ubuntu release Temporal worker
