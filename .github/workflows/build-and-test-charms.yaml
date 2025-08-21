@@ -1,0 +1,121 @@
+name: Build and test charms
+
+on:
+  push:
+  pull_request:
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+
+jobs:
+  define-charm-list:
+    name: Define charm list to build
+    runs-on: ubuntu-24.04
+    outputs:
+      charms: ${{ steps.charms.outputs.charms }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+
+      - name: Generate list
+        id: charms
+        run: |
+          list="$(find . -mindepth 1 -maxdepth 1 -type d -printf '"%P", ')"
+          echo "charms=[$list]"
+          echo "charms=[$list]" >> $GITHUB_OUTPUT
+        working-directory: charms
+
+  lint:
+    name: Lint - (${{ matrix.charm }})
+    runs-on: ubuntu-24.04
+    needs:
+      - define-charm-list
+    strategy:
+      fail-fast: false
+      matrix:
+        charm: ${{ fromJSON(needs.define-charm-list.outputs.charms) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Install dependencies
+        run: sudo snap install ruff --classic
+      - name: Run linters
+        run: ruff check --preview .
+        working-directory: charms/${{ matrix.charm }}
+
+  lib-check:
+    name: Check libraries - (${{ matrix.charm }})
+    runs-on: ubuntu-24.04
+    needs:
+      - define-charm-list
+    strategy:
+      matrix:
+        charm: ${{ fromJSON(needs.define-charm-list.outputs.charms) }}
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          # fetch-depth: 0 # TODO optimize that for speed
+          persist-credentials: false
+      - name: Check libs
+        uses: canonical/charming-actions/check-libraries@1753e0803f70445132e92acd45c905aba6473225 # 2.7.0
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          charm-path: charms/${{ matrix.charm }}
+
+  pack-charm:
+    name: Build charm - (${{ matrix.charm }})
+    runs-on: ubuntu-24.04
+    needs:
+      - define-charm-list
+    strategy:
+      matrix:
+        charm: ${{ fromJSON(needs.define-charm-list.outputs.charms) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+
+      - name: Setup LXD
+        uses: canonical/setup-lxd@a3c85fc6fb7fff43fcfeae87659e41a8f635b7dd
+
+      - name: Install and bootstrap toolchains
+        run: |
+          sudo snap install astral-uv --classic
+          sudo snap install concierge --classic
+          sudo concierge prepare \
+              --juju-channel=3/stable \
+              --charmcraft-channel=3.x/stable \
+              --preset machine
+
+      - name: Pack charm
+        run: charmcraft pack -v
+        working-directory: charms/${{ matrix.charm }}
+
+      - name: Test charm
+        run: uv run pytest tests/ -vv --log-level=INFO
+        working-directory: charms/${{ matrix.charm }}
+
+      - name: Upload charm artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.charm }}.charm
+          path: charms/${{ matrix.charm }}/*.charm
+
+      - name: Upload charm to charmhub
+        uses: canonical/charming-actions/upload-charm@1753e0803f70445132e92acd45c905aba6473225 # 2.7.0
+        with:
+          credentials: '${{ secrets.CHARMHUB_TOKEN }}'
+          github-token: '${{ secrets.GITHUB_TOKEN }}'
+          charm-path: charms/${{ matrix.charm }}
+          tag-prefix: ${{ matrix.charm }}
+          built-charm-path: ubuntu-release-${{ matrix.charm }}_ubuntu@24.04-amd64.charm
+        if: github.ref == 'refs/heads/main'

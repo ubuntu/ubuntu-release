@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+
+jobs:
+  # This runs golangci-lint against the codebase
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Determine which tests to run
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            go:
+              - '**.go'
+              - 'go.mod'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: false
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.5
+          args: --print-issued-lines=true
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      - run: gofmt -w -l -s .
+      - name: git diff
+        run: |
+          git diff --compact-summary --exit-code || \
+            (echo; echo "Unexpected difference in directories after go fmt. Run 'gofmt -w -l -s .' command and commit."; exit 1)
+
+  woke:
+    name: woke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: woke
+        uses: get-woke/woke-action@b2ec032c4a2c912142b38a6a453ad62017813ed0 # v0
+        with:
+          # Cause the check to fail on any broke rules
+          fail-on-error: true

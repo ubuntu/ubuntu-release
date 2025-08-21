@@ -1,0 +1,45 @@
+name: Release charms to other channels
+
+on:
+  workflow_dispatch:
+    inputs:
+      destination-channel:
+        description: 'Destination Channel'
+        required: true
+        type: choice
+        options:
+          - stable
+          - edge
+      origin-channel:
+        description: 'Origin Channel'
+        required: true
+        type: choice
+        options:
+          - edge
+          - stable
+
+      # for multi charm repo
+      charm-name:
+        description: 'Charm Name'
+        required: true
+        type: choice
+        options:
+          - worker
+
+jobs:
+  promote-charm:
+    name: Promote charm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release charm to channel
+        uses: canonical/charming-actions/release-charm@1753e0803f70445132e92acd45c905aba6473225 # 2.7.0
+        with:
+          credentials: ${{ secrets.CHARMHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          destination-channel: ${{ github.event.inputs.destination-channel }}
+          origin-channel: ${{ github.event.inputs.origin-channel }}
+
+          # for multi charm repo
+          tag-prefix: ${{ github.event.inputs.charm-name }}
+          charm-path: charms/${{ github.event.inputs.charm-name }}
