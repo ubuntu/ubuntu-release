@@ -29,7 +29,7 @@ go.work.sum
 
 # Python stuff
 *__pycache__
-/uv.lock
+uv.lock
 
 # Editor/IDE
 .idea/
@@ -37,4 +37,4 @@ go.work.sum
 
 # Binary and artifacts
 /ubuntu-release
-/ubuntu_release.egg-info
+ubuntu_release.egg-info

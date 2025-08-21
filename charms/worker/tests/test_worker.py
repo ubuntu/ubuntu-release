@@ -1,6 +1,7 @@
 import logging
 
 import jubilant
+
 from conftest import charm_path
 
 logger = logging.getLogger()
