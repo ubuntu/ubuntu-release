@@ -1,0 +1,41 @@
+# This file configures Charmcraft.
+# See https://juju.is/docs/sdk/charmcraft-config for guidance.
+name: ubuntu-release-worker
+type: charm
+title: Ubuntu Release - worker
+summary: The Worker is the main entry point to run our Temporal workflows
+description: |
+  TODO
+links:
+  source:
+    - https://github.com/ubuntu/ubuntu-release/tree/main/charms/worker
+
+platforms:
+  ubuntu@24.04:amd64:
+
+parts:
+  worker:
+    source: .
+    plugin: charm
+
+# More information on this section at https://juju.is/docs/sdk/charmcraft-yaml#heading--config
+# General configuration documentation: https://juju.is/docs/sdk/config
+config:
+  options:
+    repo-url:
+      description: |
+        Address of the git repository to clone
+      default: "https://github.com/ubuntu/ubuntu-release"
+      type: string
+    repo-branch:
+      description: |
+        Branch of the git repository to check out
+      default: "main"
+      type: string
+    log-level:
+      description: |
+        Configures the log level.
+
+        Acceptable values are: "info", "debug", "warning", "error" and "critical"
+      default: "info"
+      type: string
