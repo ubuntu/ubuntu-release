@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+import subprocess
 
 import jubilant
 import pytest
@@ -14,6 +15,11 @@ def charm_path(name: str) -> Path:
     assert charms, f"ubuntu-release-{name}_*.charm not found"
     assert len(charms) == 1, "more than one .charm file, unsure which to use"
     return charms[0]
+
+
+@pytest.fixture(scope="module")
+def repo_sha() -> str:
+    return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
 
 
 @pytest.fixture(scope="module")
