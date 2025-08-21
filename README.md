@@ -10,6 +10,24 @@ to submit feature requests, please make sure you already understand Ubuntu's
 release mechanisms, and have a strong use-case in mind to show that it needs to
 be taken into account early.
 
-### ubuntu-release go binary
+## ubuntu-release go binary
 
 `ubuntu-release` is a Go utility to facilitate the Ubuntu Release activities.
+
+
+## Quick start local run
+
+To start the local Temporal server:
+```
+temporal server start-dev
+```
+
+To start the Temporal worker:
+```
+go run ubuntu-release-worker/main.go
+```
+
+To start the HelloUbuntu Temporal workflow:
+```
+go run ubuntu-release/main.go hello
+```
