@@ -36,5 +36,8 @@ uv.lock
 .vscode/
 
 # Binary and artifacts
-/ubuntu-release
 ubuntu_release.egg-info
+
+# *craft stuff
+*.rock
+*.docker
