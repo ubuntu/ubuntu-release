@@ -9,11 +9,15 @@ from pathlib import Path
 from subprocess import CalledProcessError, check_call, check_output
 
 import ops
+from charms.haproxy.v1.haproxy_route import HaproxyRouteRequirer
 
 logger = logging.getLogger(__name__)
 
 HOME = Path("~ubuntu").expanduser()
 REPO_LOCATION = HOME / "ubuntu-release"
+
+TEMPORAL_PORT = 7233
+TEMPORAL_UI_PORT = 8233
 
 
 class WorkerCharm(ops.CharmBase):
@@ -21,13 +25,31 @@ class WorkerCharm(ops.CharmBase):
 
     def __init__(self, framework: ops.Framework) -> None:
         super().__init__(framework)
-        # self.framework.observe(self.on.start, self._on_start)
-        self.framework.observe(self.on.install, self._on_install)
-        self.framework.observe(self.on.config_changed, self._on_config_changed)
 
-    # def _on_start(self, event: ops.StartEvent):
-    #     """Handle start event."""
-    #     self.unit.status = ops.ActiveStatus("Ready")
+        # This route actually does not work, because haproxy charm doesn't
+        # support configuring gRPC backend yet. See TODO bug link
+        self.route_temporal = HaproxyRouteRequirer(
+            self,
+            service="temporal",
+            ports=[TEMPORAL_PORT],
+            paths=["/"],
+            relation_name="route_temporal",
+        )
+        self.route_temporal_ui = HaproxyRouteRequirer(
+            self,
+            service="temporal_ui",
+            ports=[TEMPORAL_UI_PORT],
+            paths=["/ui"],
+            relation_name="route_temporal_ui",
+        )
+
+        framework.observe(self.on.install, self._on_install)
+        framework.observe(self.on.config_changed, self._on_config_changed)
+
+        framework.observe(self.route_temporal.on.ready, self._on_config_changed)
+        framework.observe(self.route_temporal.on.removed, self._on_config_changed)
+        framework.observe(self.route_temporal_ui.on.ready, self._on_config_changed)
+        framework.observe(self.route_temporal_ui.on.removed, self._on_config_changed)
 
     def _on_install(self, event: ops.InstallEvent):
         """Handle install event."""
@@ -44,7 +66,10 @@ class WorkerCharm(ops.CharmBase):
                     "vim",
                 ]
             )
-            check_call(["snap", "install", "temporal"])
+            # workaround snap'd temporal not able to run in a systemd service for reasons™
+            # check_call(["snap", "install", "temporal"])
+            # this temporal binary arrived magically "here" with the "dump" plugin in charmcraft.yaml
+            check_call(["cp", "temporal", "/usr/bin/temporal"])
         except CalledProcessError as e:
             logger.debug("Package install failed with return code %d", e.returncode)
             self.unit.status = ops.BlockedStatus("Failed installing apt packages.")
@@ -109,6 +134,8 @@ class WorkerCharm(ops.CharmBase):
 
         self.unit.status = ops.MaintenanceStatus("Building worker binary")
 
+        # TODO: move that build step out of the charm deployment, and make that
+        # happen around the charmcraft pack operation, in the CI
         check_call(
             [
                 "sudo",
@@ -135,7 +162,7 @@ Description=Ubuntu Release Temporal server
 User=ubuntu
 Group=ubuntu
 WorkingDirectory={HOME}
-ExecStart=/snap/bin/temporal server start-dev
+ExecStart=temporal server start-dev --ip 0.0.0.0 --ui-public-path /ui
 Restart=on-failure
 
 [Install]

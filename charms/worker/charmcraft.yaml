@@ -14,9 +14,17 @@ platforms:
   ubuntu@24.04:amd64:
 
 parts:
+  # workaround snap'd temporal not able to run in a systemd service for reasons™
+  temporal:
+    source: https://github.com/temporalio/cli/releases/download/v1.4.2-fairness.0/temporal_cli_1.4.2-fairness.0_linux_amd64.tar.gz
+    plugin: dump
   worker:
     source: .
     plugin: charm
+
+charm-libs:
+  - lib: haproxy.haproxy_route
+    version: "1"
 
 # More information on this section at https://juju.is/docs/sdk/charmcraft-yaml#heading--config
 # General configuration documentation: https://juju.is/docs/sdk/config
@@ -39,3 +47,13 @@ config:
         Acceptable values are: "info", "debug", "warning", "error" and "critical"
       default: "info"
       type: string
+
+requires:
+  route_temporal:
+    interface: haproxy-route
+    limit: 1
+    optional: true
+  route_temporal_ui:
+    interface: haproxy-route
+    limit: 1
+    optional: true
