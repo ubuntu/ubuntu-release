@@ -18,11 +18,6 @@ def charm_path(name: str) -> Path:
 
 
 @pytest.fixture(scope="module")
-def repo_sha() -> str:
-    return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
-
-
-@pytest.fixture(scope="module")
 def juju() -> jubilant.Juju:
     with jubilant.temp_model() as juju:
         yield juju

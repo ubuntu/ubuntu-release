@@ -8,6 +8,7 @@ import (
 	"context"
 	"log"
 	"os"
+
 	"ubuntu-release/lib"
 
 	"github.com/spf13/cobra"
@@ -35,8 +36,12 @@ var helloCmd = &cobra.Command{
 	Short: "Trigger a Hello Ubuntu workflow",
 	Long:  `The Hello Ubuntu workflow says Hello to a given product`,
 	Run: func(cmd *cobra.Command, args []string) {
-		c, err := client.Dial(client.Options{})
+		temporal_host, err := rootCmd.Flags().GetString("temporal-host")
+		if err != nil {
+			log.Fatalln("Unable to parse temporal host argument:", err)
+		}
 
+		c, err := client.Dial(client.Options{HostPort: temporal_host})
 		if err != nil {
 			log.Fatalln("Unable to create Temporal client:", err)
 		}
@@ -57,7 +62,6 @@ var helloCmd = &cobra.Command{
 		var result string
 
 		err = we.Get(context.Background(), &result)
-
 		if err != nil {
 			log.Fatalln("Unable to get Workflow result:", err)
 		}
@@ -84,9 +88,10 @@ func init() {
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	rootCmd.PersistentFlags().String("temporal-host", "127.0.0.1:7233", "Temporal host")
 	rootCmd.AddCommand(helloCmd)
 }
+
 func main() {
 	Execute()
 }
