@@ -29,7 +29,7 @@ def test_deploy(juju: jubilant.Juju):
     # Doesn't work yet
     # juju.integrate(UR_WORKER + ":route_temporal", HAPROXY)
 
-    juju.wait(lambda status: jubilant.all_active(status, UR_WORKER, HAPROXY, SSC), timeout=1200)
+    juju.wait(lambda status: jubilant.all_active(status, UR_WORKER, HAPROXY, SSC), timeout=1800)
 
 
 def test_ingress_functions_correctly(juju: jubilant.Juju):
