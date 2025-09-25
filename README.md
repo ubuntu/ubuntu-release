@@ -1,7 +1,7 @@
 # Ubuntu Release
 
-This repo hosts the tooling used to generate Ubuntu images hosted on
-https://images.ubuntu.com.
+This repo hosts the tooling used to generate Ubuntu images hosted on the not yet
+existing https://images.ubuntu.com.
 
 **DISCLAIMER**: this is very early work, as we're trying to move away from a
 very manual process and setup on https://cdimage.ubuntu.com. This repo is still

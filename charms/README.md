@@ -12,3 +12,19 @@ In each folder, one can get the integration tests running by using the following
   This is for maximum live verbosity. You don't actually need all those flags to
   just run the tests, but I find that convenient in development.
 
+NOTE: for the `worker` charm, you'll need an `ubuntu-release-worker` binary to
+sit next to `charmcraft.yaml`. This can be generated once with:
+```
+go build -o ubuntu-release-worker ../../ubuntu-release-worker/main.go
+```
+
+## Generating the charmhub token for the CI
+
+```
+charmcraft login --export=secrets.auth --charm=ubuntu-release-worker  --permission=package-manage --permission=package-view --ttl=$((3600*24*365))
+cat secrets.auth | wl-copy
+shred -u secrets.auth
+```
+
+Go to <https://github.com/ubuntu/ubuntu-release/settings/secrets/actions> and
+update the `CHARMHUB_TOKEN` secret.
