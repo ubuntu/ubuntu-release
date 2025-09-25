@@ -94,9 +94,14 @@ jobs:
 
       - name: Install and bootstrap toolchains
         run: |
+          sudo apt install golang-go
           sudo snap install astral-uv --classic
           sudo snap install concierge --classic
           sudo concierge prepare --preset machine
+
+      - name: Build temporal worker
+        run: go build -ldflags="-X main.Commit=$(git describe --tags --always --dirty)" -o ubuntu-release-worker ../../ubuntu-release-worker/main.go
+        working-directory: charms/${{ matrix.charm }}
 
       - name: Pack charm
         run: charmcraft pack -v
