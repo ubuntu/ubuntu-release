@@ -14,11 +14,16 @@ platforms:
   ubuntu@24.04:amd64:
 
 parts:
+  # Get the worker in the charm
+  ubuntu-release-worker:
+    source: ubuntu-release-worker
+    source-type: file
+    plugin: dump
   # workaround snap'd temporal not able to run in a systemd service for reasons™
   temporal:
     source: https://github.com/temporalio/cli/releases/download/v1.4.2-fairness.0/temporal_cli_1.4.2-fairness.0_linux_amd64.tar.gz
     plugin: dump
-  worker:
+  charm:
     source: .
     plugin: charm
 
@@ -30,16 +35,6 @@ charm-libs:
 # General configuration documentation: https://juju.is/docs/sdk/config
 config:
   options:
-    repo-url:
-      description: |
-        Address of the git repository to clone
-      default: "https://github.com/ubuntu/ubuntu-release"
-      type: string
-    repo-branch:
-      description: |
-        Branch of the git repository to check out
-      default: "main"
-      type: string
     log-level:
       description: |
         Configures the log level.
