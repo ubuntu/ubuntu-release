@@ -123,6 +123,8 @@ WantedBy=multi-user.target
         self.unit.status = ops.MaintenanceStatus("restarting systemd units")
         check_call(["systemctl", "restart", "temporal"])
         check_call(["systemctl", "restart", "ubuntu-release-worker"])
+        # Temporarily expose the temporal port, since HAProxy is unable to proxy gRPC
+        self.unit.set_ports(TEMPORAL_PORT)
         self.unit.set_workload_version(self._getWorkloadVersion())
         self.unit.status = ops.ActiveStatus("Ready")
 
