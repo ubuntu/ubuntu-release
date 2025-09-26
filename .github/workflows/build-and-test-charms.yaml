@@ -100,7 +100,10 @@ jobs:
           sudo concierge prepare --preset machine
 
       - name: Build temporal worker
-        run: go build -ldflags="-X main.Commit=$(git describe --tags --always --dirty)" -o ubuntu-release-worker ../../ubuntu-release-worker/main.go
+        run: |
+          version="$(git describe --tags --always --dirty)"
+          echo "version: $version"
+          go build -ldflags="-X main.Version=$version" -o ubuntu-release-worker ../../ubuntu-release-worker/main.go
         working-directory: charms/${{ matrix.charm }}
 
       - name: Pack charm
