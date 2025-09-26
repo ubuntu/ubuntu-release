@@ -6,6 +6,7 @@ dependencies = [
     "jubilant>=1.3.0",
     "pytest>=8.3.5",
     "requests>=2.32.4",
+    "tenacity>=9.0.0",
 ]
 
 # Linting tools configuration

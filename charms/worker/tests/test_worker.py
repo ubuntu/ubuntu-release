@@ -2,6 +2,7 @@ import logging
 
 import jubilant
 from requests import Session
+from tenacity import Retrying, stop_after_attempt, wait_exponential
 
 from conftest import charm_path
 
@@ -41,12 +42,23 @@ def test_ingress_functions_correctly(juju: jubilant.Juju):
 
     session = Session()
     session.mount("https://", DNSResolverHTTPSAdapter(external_hostname, haproxy_ip))
-    response = session.get(
-        f"https://{haproxy_ip}/ui/",
-        headers={"Host": external_hostname},
-        verify=False,
-        timeout=30,
-    )
 
-    assert response.status_code == 200
-    assert """<link rel="modulepreload" href="/ui/_app/immutable/entry/start""" in response.text
+    # Let give this test a few chances to succeed, as it can sometimes be a bit
+    # early and hit 503
+    for attempt in Retrying(
+        stop=stop_after_attempt(10),
+        wait=wait_exponential(min=5, max=30),
+        reraise=True,
+    ):
+        with attempt:
+            response = session.get(
+                f"https://{haproxy_ip}/ui/",
+                headers={"Host": external_hostname},
+                verify=False,
+                timeout=30,
+            )
+            assert response.status_code == 200
+            assert (
+                """<link rel="modulepreload" href="/ui/_app/immutable/entry/start"""
+                in response.text
+            )
