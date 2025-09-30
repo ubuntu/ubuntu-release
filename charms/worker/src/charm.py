@@ -6,7 +6,7 @@
 
 import logging
 from pathlib import Path
-from subprocess import CalledProcessError, check_call, check_output
+from subprocess import CalledProcessError, call, check_call, check_output
 
 import ops
 from charms.haproxy.v1.haproxy_route import HaproxyRouteRequirer
@@ -42,15 +42,16 @@ class WorkerCharm(ops.CharmBase):
             relation_name="route_temporal_ui",
         )
 
-        framework.observe(self.on.install, self._on_install)
-        framework.observe(self.on.config_changed, self._on_config_changed)
+        framework.observe(self.on.install, self._install)
+        framework.observe(self.on.upgrade_charm, self._install)
+        framework.observe(self.on.config_changed, self._setup_config)
 
-        framework.observe(self.route_temporal.on.ready, self._on_config_changed)
-        framework.observe(self.route_temporal.on.removed, self._on_config_changed)
-        framework.observe(self.route_temporal_ui.on.ready, self._on_config_changed)
-        framework.observe(self.route_temporal_ui.on.removed, self._on_config_changed)
+        framework.observe(self.route_temporal.on.ready, self._setup_config)
+        framework.observe(self.route_temporal.on.removed, self._setup_config)
+        framework.observe(self.route_temporal_ui.on.ready, self._setup_config)
+        framework.observe(self.route_temporal_ui.on.removed, self._setup_config)
 
-    def _on_install(self, event: ops.InstallEvent):
+    def _install(self, event: ops.InstallEvent):
         """Handle install event."""
         try:
             self.unit.status = ops.MaintenanceStatus("Installing apt dependencies")
@@ -65,6 +66,11 @@ class WorkerCharm(ops.CharmBase):
                 ]
             )
 
+            # Those might fail upon first install, but it's no problem. We just
+            # want to make sure the processes are shutdown before copying new binaries.
+            call(["systemctl", "stop", "temporal"])
+            call(["systemctl", "stop", "ubuntu-release-worker"])
+
             # workaround snap'd temporal not able to run in a systemd service for reasons™
             # check_call(["snap", "install", "temporal"])
             # this temporal binary arrived magically "here" with the "dump" plugin in charmcraft.yaml
@@ -78,9 +84,11 @@ class WorkerCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus("Failed installing apt packages.")
             return
 
+        self.unit.set_workload_version(self._getWorkloadVersion())
+
         self.unit.status = ops.ActiveStatus("Ready")
 
-    def _on_config_changed(self, event: ops.ConfigChangedEvent):
+    def _setup_config(self, event: ops.ConfigChangedEvent):
         systemd_unit_location = Path("/") / "etc" / "systemd" / "system"
         systemd_unit_location.mkdir(parents=True, exist_ok=True)
         self.unit.status = ops.MaintenanceStatus("setting up systemd units")
@@ -125,7 +133,6 @@ WantedBy=multi-user.target
         check_call(["systemctl", "restart", "ubuntu-release-worker"])
         # Temporarily expose the temporal port, since HAProxy is unable to proxy gRPC
         self.unit.set_ports(TEMPORAL_PORT)
-        self.unit.set_workload_version(self._getWorkloadVersion())
         self.unit.status = ops.ActiveStatus("Ready")
 
     def _getWorkloadVersion(self):
