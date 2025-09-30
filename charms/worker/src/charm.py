@@ -42,15 +42,15 @@ class WorkerCharm(ops.CharmBase):
             relation_name="route_temporal_ui",
         )
 
-        framework.observe(self.on.install, self._on_install)
-        framework.observe(self.on.config_changed, self._on_config_changed)
+        framework.observe(self.on.install, self._install)
+        framework.observe(self.on.config_changed, self._setup_config)
 
-        framework.observe(self.route_temporal.on.ready, self._on_config_changed)
-        framework.observe(self.route_temporal.on.removed, self._on_config_changed)
-        framework.observe(self.route_temporal_ui.on.ready, self._on_config_changed)
-        framework.observe(self.route_temporal_ui.on.removed, self._on_config_changed)
+        framework.observe(self.route_temporal.on.ready, self._setup_config)
+        framework.observe(self.route_temporal.on.removed, self._setup_config)
+        framework.observe(self.route_temporal_ui.on.ready, self._setup_config)
+        framework.observe(self.route_temporal_ui.on.removed, self._setup_config)
 
-    def _on_install(self, event: ops.InstallEvent):
+    def _install(self, event: ops.InstallEvent):
         """Handle install event."""
         try:
             self.unit.status = ops.MaintenanceStatus("Installing apt dependencies")
@@ -80,7 +80,7 @@ class WorkerCharm(ops.CharmBase):
 
         self.unit.status = ops.ActiveStatus("Ready")
 
-    def _on_config_changed(self, event: ops.ConfigChangedEvent):
+    def _setup_config(self, event: ops.ConfigChangedEvent):
         systemd_unit_location = Path("/") / "etc" / "systemd" / "system"
         systemd_unit_location.mkdir(parents=True, exist_ok=True)
         self.unit.status = ops.MaintenanceStatus("setting up systemd units")
