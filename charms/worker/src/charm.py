@@ -6,7 +6,7 @@
 
 import logging
 from pathlib import Path
-from subprocess import CalledProcessError, check_call, check_output
+from subprocess import CalledProcessError, call, check_call, check_output
 
 import ops
 from charms.haproxy.v1.haproxy_route import HaproxyRouteRequirer
@@ -43,6 +43,7 @@ class WorkerCharm(ops.CharmBase):
         )
 
         framework.observe(self.on.install, self._install)
+        framework.observe(self.on.upgrade_charm, self._install)
         framework.observe(self.on.config_changed, self._setup_config)
 
         framework.observe(self.route_temporal.on.ready, self._setup_config)
@@ -65,6 +66,11 @@ class WorkerCharm(ops.CharmBase):
                 ]
             )
 
+            # Those might fail upon first install, but it's no problem. We just
+            # want to make sure the processes are shutdown before copying new binaries.
+            call(["systemctl", "stop", "temporal"])
+            call(["systemctl", "stop", "ubuntu-release-worker"])
+
             # workaround snap'd temporal not able to run in a systemd service for reasons™
             # check_call(["snap", "install", "temporal"])
             # this temporal binary arrived magically "here" with the "dump" plugin in charmcraft.yaml
@@ -77,6 +83,8 @@ class WorkerCharm(ops.CharmBase):
             logger.debug("Package install failed with return code %d", e.returncode)
             self.unit.status = ops.BlockedStatus("Failed installing apt packages.")
             return
+
+        self.unit.set_workload_version(self._getWorkloadVersion())
 
         self.unit.status = ops.ActiveStatus("Ready")
 
@@ -125,7 +133,6 @@ WantedBy=multi-user.target
         check_call(["systemctl", "restart", "ubuntu-release-worker"])
         # Temporarily expose the temporal port, since HAProxy is unable to proxy gRPC
         self.unit.set_ports(TEMPORAL_PORT)
-        self.unit.set_workload_version(self._getWorkloadVersion())
         self.unit.status = ops.ActiveStatus("Ready")
 
     def _getWorkloadVersion(self):
