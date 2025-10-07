@@ -13,9 +13,9 @@ HAPROXY = "haproxy"
 SSC = "self-signed-certificates"
 
 
-def test_deploy(juju: jubilant.Juju, charm_path):
+def test_deploy(juju: jubilant.Juju, worker_charm_path):
     juju.deploy(
-        charm=charm_path("worker"),
+        charm=worker_charm_path,
         app=UR_WORKER,
     )
     juju.deploy(

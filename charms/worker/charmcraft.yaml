@@ -22,13 +22,8 @@ parts:
   charm:
     plugin: uv
     source: .
-    build-packages:
-      - git
     build-snaps:
       - astral-uv
-    override-build: |
-      craftctl default
-      git describe --always > $CRAFT_PART_INSTALL/version
 
 charm-libs:
   - lib: haproxy.haproxy_route
