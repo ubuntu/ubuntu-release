@@ -111,7 +111,7 @@ jobs:
         working-directory: charms/${{ matrix.charm }}
 
       - name: Integration Test charm
-        run: uv run pytest tests/integration -vv --log-level=INFO -o log_cli=1
+        run: make integration
         working-directory: charms/${{ matrix.charm }}
 
       - name: Upload charm artifact
