@@ -19,16 +19,23 @@ parts:
     source: ubuntu-release-worker
     source-type: file
     plugin: dump
-  # workaround snap'd temporal not able to run in a systemd service for reasons™
-  temporal:
-    source: https://github.com/temporalio/cli/releases/download/v1.4.2-fairness.0/temporal_cli_1.4.2-fairness.0_linux_amd64.tar.gz
-    plugin: dump
   charm:
+    plugin: uv
     source: .
-    plugin: charm
+    build-packages:
+      - git
+    build-snaps:
+      - astral-uv
+    override-build: |
+      craftctl default
+      git describe --always > $CRAFT_PART_INSTALL/version
 
 charm-libs:
   - lib: haproxy.haproxy_route
+    version: "1"
+  - lib: operator_libs_linux.snap
+    version: "2"
+  - lib: operator_libs_linux.systemd
     version: "1"
 
 # More information on this section at https://juju.is/docs/sdk/charmcraft-yaml#heading--config
