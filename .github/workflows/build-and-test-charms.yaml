@@ -47,9 +47,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Install dependencies
-        run: sudo snap install ruff --classic
+        run: sudo snap install astral-uv --classic
       - name: Run linters
-        run: ruff check --preview .
+        run: make lint
         working-directory: charms/${{ matrix.charm }}
 
   lib-check:
