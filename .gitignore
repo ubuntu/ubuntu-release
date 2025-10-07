@@ -29,7 +29,6 @@ go.work.sum
 
 # Python stuff
 *__pycache__
-uv.lock
 
 # Editor/IDE
 .idea/
