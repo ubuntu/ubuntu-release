@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Generator
 
 import jubilant
 import pytest
@@ -7,6 +8,7 @@ import pytest
 logger = logging.getLogger()
 
 
+@pytest.fixture(scope="module")
 def charm_path(name: str) -> Path:
     """Return full absolute path to given test charm."""
     charm_dir = Path(__file__).parent / name
@@ -17,6 +19,6 @@ def charm_path(name: str) -> Path:
 
 
 @pytest.fixture(scope="module")
-def juju() -> jubilant.Juju:
+def juju() -> Generator[jubilant.Juju, None, None]:
     with jubilant.temp_model() as juju:
         yield juju

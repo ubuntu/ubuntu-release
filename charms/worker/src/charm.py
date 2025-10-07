@@ -84,7 +84,7 @@ class WorkerCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus("Failed installing apt packages.")
             return
 
-        self.unit.set_workload_version(self._getWorkloadVersion())
+        self.unit.set_workload_version(self._get_workload_version())
 
         self.unit.status = ops.ActiveStatus("Ready")
 
@@ -135,8 +135,8 @@ WantedBy=multi-user.target
         self.unit.set_ports(TEMPORAL_PORT)
         self.unit.status = ops.ActiveStatus("Ready")
 
-    def _getWorkloadVersion(self):
-        """Get the retracer version from the git repository"""
+    def _get_workload_version(self):
+        """Get the retracer version from the git repository."""
         try:
             self.unit.status = ops.MaintenanceStatus("fetching worker version")
             version = check_output(["ubuntu-release-worker", "--version"]).strip()

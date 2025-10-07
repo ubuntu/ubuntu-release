@@ -4,8 +4,6 @@ import jubilant
 from requests import Session
 from tenacity import Retrying, stop_after_attempt, wait_exponential
 
-from conftest import charm_path
-
 from . import DNSResolverHTTPSAdapter
 
 logger = logging.getLogger()
@@ -15,7 +13,7 @@ HAPROXY = "haproxy"
 SSC = "self-signed-certificates"
 
 
-def test_deploy(juju: jubilant.Juju):
+def test_deploy(juju: jubilant.Juju, charm_path):
     juju.deploy(
         charm=charm_path("worker"),
         app=UR_WORKER,
