@@ -17,6 +17,7 @@ dev = [
     "requests",
     "ruff",
     "tenacity",
+    "ty",
 ]
 
 [tool.coverage.run]
@@ -54,3 +55,6 @@ per-file-ignores = { "tests/*" = ["D100", "D101", "D102", "D103", "D104"] }
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
+
+[tool.ty.environment]
+extra-paths = ["lib"]
