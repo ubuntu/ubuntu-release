@@ -1,0 +1,20 @@
+summary: Run basic deployment tests
+systems:
+  - ubuntu-24.04
+
+execute: |
+  pushd "$SPREAD_PATH"
+
+  args="tests/integration/test_worker.py"
+
+  if [[ -f "$PWD/ubuntu-release-worker_ubuntu@24.04-amd64.charm" ]]; then
+    args="--charm-path=$PWD/ubuntu-release-worker_ubuntu@24.04-amd64.charm $args"
+  fi
+
+  make integration ARGS="$args"
+
+restore: |
+  if [[ -z "${CI:-}" ]]; then
+    juju destroy-model --no-prompt --destroy-storage testing
+    juju add-model testing
+  fi

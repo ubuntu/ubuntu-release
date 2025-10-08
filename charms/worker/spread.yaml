@@ -1,0 +1,87 @@
+project: worker-charm-tests
+kill-timeout: 90m
+workers: 1
+
+environment:
+  CI: "$(HOST: echo $CI)"
+
+backends:
+  lxd:
+    type: adhoc
+    allocate: |
+      # This is a temporary hack to remind the user to run the 'go build' command before
+      # trying to run an integration test where the charm would need to be built.
+      if [[ ! -f "$PWD/ubuntu-release-worker_ubuntu@24.04-amd64.charm" ]] && [[ ! -f "$PWD/ubuntu-release-worker" ]]; then
+        echo "Release binary 'ubuntu-release-worker' is missing. Run 'go build -o ubuntu-release-worker ../../ubuntu-release-worker/main.go' and re-run 'spread'."
+        exit 1
+      fi
+
+      CONTAINER_NAME="worker-${SPREAD_SYSTEM/./-}-${RANDOM}"
+      DISK="${DISK:-20}"
+      CPU="${CPU:-4}"
+      MEM="${MEM:-8}"
+
+      lxc launch --vm \
+        "${SPREAD_SYSTEM/-/:}" \
+        "${CONTAINER_NAME}" \
+        -c user.user-data="$(sed "s|SPREAD_PASSWORD|$SPREAD_PASSWORD|g" tests/spread/cloud-config.yaml)" \
+        -c limits.cpu="${CPU}" \
+        -c limits.memory="${MEM}GiB" \
+        -d root,size="${DISK}GiB"
+
+      # Wait for the spread user
+      while ! lxc exec "${CONTAINER_NAME}" -- id -u spread &>/dev/null; do sleep 0.5; done
+
+      # Set the instance address for spread
+      ADDRESS "$(lxc ls -f csv | grep "${CONTAINER_NAME}" | cut -d"," -f3 | cut -d" " -f1)"
+    discard: |
+      instance_name="$(lxc ls -f csv | grep $SPREAD_SYSTEM_ADDRESS | cut -f1 -d",")"
+      lxc delete -f $instance_name
+
+    systems:
+      - ubuntu-24.04:
+          username: spread
+          workers: 1
+
+suites:
+  tests/spread/integration/:
+    summary: Spread tests - charm integration tests
+    environment:
+      CONCIERGE_JUJU_CHANNEL/juju_3_6: 3.6/stable
+    prepare-each: |
+      snap install --classic concierge
+      concierge prepare --trace -p machine --extra-snaps astral-uv --extra-debs make
+
+      pushd "$SPREAD_PATH"
+
+      if [[ -f "$PWD/ubuntu-release-worker_ubuntu@24.04-amd64.charm" ]]; then
+        chown $(id -u):$(id -g) $PWD/ubuntu-release-worker_ubuntu@24.04-amd64.charm
+      fi
+    restore-each: |
+      if [[ -z "${CI:-}" ]]; then
+        concierge restore --trace
+        apt autoremove -y --purge
+        rm -Rf "$SPREAD_PATH"
+        mkdir -p "$SPREAD_PATH"
+      fi
+
+  # tests/spread/functional/:
+  #   summary: Spread tests - functional tests
+  #   prepare-each: |
+  #     sudo apt update
+  #     sudo apt install -y make
+  #     sudo snap install --classic astral-uv
+
+exclude:
+  - .coverage
+  - .git
+  - .github
+  - .pytest_cache
+  - .ruff_cache
+  - .tox
+  - .venv
+
+# this needs to be under /root because spread executes the test scripts
+# as root, which means that juju can only see files in root's
+# home directory due to snap confinement.
+path: /root/proj

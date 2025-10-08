@@ -92,14 +92,14 @@ jobs:
       - name: Setup LXD
         uses: canonical/setup-lxd@a3c85fc6fb7fff43fcfeae87659e41a8f635b7dd
 
-      - name: Install and bootstrap toolchains
-        run: |
-          sudo apt install golang-go
-          sudo snap install astral-uv --classic
-          sudo snap install concierge --classic
-          sudo concierge prepare --preset machine
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.23.0
 
       - name: Build temporal worker
+        env:
+          CGO_ENABLED: 0
         run: |
           version="$(git describe --tags --always --dirty)"
           echo "version: $version"
@@ -119,25 +119,99 @@ jobs:
             ${{ runner.os }}-wheel-cache-
 
       - name: Pack charm
-        run: charmcraft pack -v
-        working-directory: charms/${{ matrix.charm }}
-
-      - name: Integration Test charm
-        run: make integration ARGS="--charm-path=$PWD/ubuntu-release-worker_ubuntu@24.04-amd64.charm"
+        run: |
+          sudo snap install --classic charmcraft
+          charmcraft pack -v
         working-directory: charms/${{ matrix.charm }}
 
       - name: Upload charm artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ${{ matrix.charm }}.charm
+          name: ${{ matrix.charm }}
           path: charms/${{ matrix.charm }}/*.charm
+
+  define-integration-matrix:
+    name: Define spread integration test matrix
+    runs-on: ubuntu-24.04
+    needs:
+      - define-charm-list
+    strategy:
+      matrix:
+        charm: ${{ fromJSON(needs.define-charm-list.outputs.charms) }}
+    outputs:
+      suites: ${{ steps.suites.outputs.suites }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install charmcraft
+        run: sudo snap install charmcraft --classic
+
+      - name: Generate matrix list
+        id: suites
+        run: |
+          list="$(charmcraft test --list lxd:ubuntu-24.04:tests/spread/integration/ | sed "s|lxd:ubuntu-24.04:tests/spread/integration/||g" | jq -r -ncR '[inputs | select(length>0)]')"
+          echo "suites=$list"
+          echo "suites=$list" >> $GITHUB_OUTPUT
+        working-directory: charms/${{ matrix.charm }}
+
+  integration-test:
+    name: Integration Tests - (${{ matrix.suite }})
+    runs-on: [self-hosted, large, noble, amd64]
+    needs:
+      - define-charm-list
+      - lint
+      - pack-charm
+      - define-integration-matrix
+      # - unit-test
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON(needs.define-integration-matrix.outputs.suites) }}
+        charm: ${{ fromJSON(needs.define-charm-list.outputs.charms) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Download charm artifact
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: ${{ matrix.charm }}
+
+      - name: Setup LXD
+        uses: canonical/setup-lxd@a3c85fc6fb7fff43fcfeae87659e41a8f635b7dd
+
+      - name: Install charmcraft
+        run: sudo snap install charmcraft --classic
+
+      - name: Run integration tests
+        run: |
+          charmcraft test -v "github-ci:ubuntu-24.04:tests/spread/integration/${MATRIX_SUITE}"
+        env:
+          MATRIX_SUITE: ${{ matrix.suite }}
+
+  upload-charm:
+    name: Define spread integration test matrix
+    runs-on: ubuntu-24.04
+    needs:
+      - integration-test
+    strategy:
+      matrix:
+        charm: ${{ fromJSON(needs.define-charm-list.outputs.charms) }}
+    steps:
+      - name: Download charm artifact
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: ${{ matrix.charm }}
 
       - name: Upload charm to charmhub
         uses: canonical/charming-actions/upload-charm@1753e0803f70445132e92acd45c905aba6473225 # 2.7.0
         with:
           credentials: "${{ secrets.CHARMHUB_TOKEN }}"
           github-token: "${{ secrets.GITHUB_TOKEN }}"
-          charm-path: charms/${{ matrix.charm }}
-          tag-prefix: ${{ matrix.charm }}
           built-charm-path: ubuntu-release-${{ matrix.charm }}_ubuntu@24.04-amd64.charm
         if: github.ref == 'refs/heads/main'
