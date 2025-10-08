@@ -42,3 +42,5 @@ ubuntu_release.egg-info
 *.docker
 
 /charms/worker/ubuntu-release-worker
+
+.spread*.yaml
