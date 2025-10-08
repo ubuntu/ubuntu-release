@@ -6,6 +6,7 @@
 
 import logging
 import shutil
+import time
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
 
@@ -13,6 +14,7 @@ from charms.operator_libs_linux.v1.systemd import (
     daemon_reload,
     service_enable,
     service_restart,
+    service_running,
 )
 
 WORKER_BINARY = Path("ubuntu-release-worker")
@@ -49,7 +51,12 @@ class Worker:
     def start(self):
         """Start the Temporal server."""
         service_enable("ubuntu-release-worker")
-        service_restart("ubuntu-release-worker")
+        service_enable("ubuntu-release-worker")
+        tries = 0
+        while tries < 6 and not service_running("ubuntu-release-worker"):
+            service_restart("ubuntu-release-worker")
+            tries += 1
+            time.sleep(tries * 10)
 
     @property
     def version(self):

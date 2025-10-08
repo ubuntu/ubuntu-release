@@ -5,12 +5,14 @@
 """Temporal service."""
 
 import logging
+import time
 from pathlib import Path
 
 from charms.operator_libs_linux.v1.systemd import (
     daemon_reload,
     service_enable,
     service_restart,
+    service_running,
 )
 from charms.operator_libs_linux.v2 import snap
 
@@ -54,7 +56,11 @@ class Temporal:
     def start(self):
         """Start the Temporal server."""
         service_enable("temporal")
-        service_restart("temporal")
+        tries = 0
+        while tries < 6 and not service_running("temporal"):
+            service_restart("temporal")
+            tries += 1
+            time.sleep(tries * 10)
 
     @property
     def port(self) -> int:
