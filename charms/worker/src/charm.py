@@ -62,15 +62,14 @@ class WorkerCharm(ops.CharmBase):
             self._temporal.install()
         except snap.SnapError as e:
             logger.error("Failed to install Temporal snap: %s", str(e))
-            self.unit.status = ops.BlockedStatus("Failed to install Temporal.")
+            self.unit.status = ops.BlockedStatus("Failed to install Temporal")
             return
 
         try:
             self.unit.set_workload_version(self._worker.version)
         except CalledProcessError as e:
+            self.unit.status = ops.MaintenanceStatus("Failed to determine workload version")
             logger.error("Failed to set workload version: %s", str(e))
-
-        self.unit.status = ops.ActiveStatus("Ready")
 
     def _setup_config(self, event: ops.ConfigChangedEvent):
         self.unit.status = ops.MaintenanceStatus("Starting Temporal")
