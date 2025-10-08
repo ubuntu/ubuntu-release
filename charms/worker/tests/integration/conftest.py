@@ -1,4 +1,5 @@
 import logging
+import subprocess
 from pathlib import Path
 from typing import Generator
 
@@ -9,13 +10,20 @@ logger = logging.getLogger()
 
 
 @pytest.fixture(scope="module")
-def worker_charm_path() -> Path:
-    """Return full absolute path to given test charm."""
-    charm_dir = Path(__file__).parent / "worker"
-    charms = [p.absolute() for p in charm_dir.glob("ubuntu-release-worker_*.charm")]
-    assert charms, "ubuntu-release-worker_*.charm not found"
-    assert len(charms) == 1, "more than one .charm file, unsure which to use"
-    return charms[0]
+def worker_charm_path(request):
+    charm_file = request.config.getoption("--charm-path")
+    if charm_file:
+        return charm_file
+
+    subprocess.run(
+        ["/snap/bin/charmcraft", "pack", "--verbose"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    return next(Path.glob(Path("."), "*.charm")).absolute()
 
 
 @pytest.fixture(scope="module")

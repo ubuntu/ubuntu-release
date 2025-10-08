@@ -123,7 +123,7 @@ jobs:
         working-directory: charms/${{ matrix.charm }}
 
       - name: Integration Test charm
-        run: make integration
+        run: make integration ARGS="--charm-path=$PWD/ubuntu-release-worker_ubuntu@24.04-amd64.charm"
         working-directory: charms/${{ matrix.charm }}
 
       - name: Upload charm artifact
