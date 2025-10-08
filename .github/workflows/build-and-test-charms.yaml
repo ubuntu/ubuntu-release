@@ -206,6 +206,19 @@ jobs:
       - name: Setup LXD
         uses: canonical/setup-lxd@a3c85fc6fb7fff43fcfeae87659e41a8f635b7dd
 
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Build temporal worker
+        env:
+          CGO_ENABLED: 0
+        run: |
+          version="$(git describe --tags --always --dirty)"
+          echo "version: $version"
+          go build -ldflags="-X main.Version=$version" -o charms/${{ matrix.charm }}/ubuntu-release-worker ubuntu-release-worker/main.go
+
       - name: Install charmcraft
         run: sudo snap install charmcraft --classic
 
@@ -269,6 +282,19 @@ jobs:
 
       - name: Setup LXD
         uses: canonical/setup-lxd@a3c85fc6fb7fff43fcfeae87659e41a8f635b7dd
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Build temporal worker
+        env:
+          CGO_ENABLED: 0
+        run: |
+          version="$(git describe --tags --always --dirty)"
+          echo "version: $version"
+          go build -ldflags="-X main.Version=$version" -o charms/${{ matrix.charm }}/ubuntu-release-worker ubuntu-release-worker/main.go
 
       - name: Install charmcraft
         run: sudo snap install charmcraft --classic
