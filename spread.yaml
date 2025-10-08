@@ -4,6 +4,7 @@ workers: 1
 
 environment:
   CI: "$(HOST: echo $CI)"
+  CGO_ENABLED: 0
 
 backends:
   lxd:
@@ -39,6 +40,14 @@ backends:
           workers: 1
 
 suites:
+  tests/:
+    summary: Integration tests for `ubuntu-release`
+    prepare-each: |
+      sudo snap install go --classic
+      go build -o /usr/bin/ubuntu-release-worker ${SPREAD_PATH}/ubuntu-release-worker/main.go
+      go build -o /usr/bin/ubuntu-release ${SPREAD_PATH}/ubuntu-release/main.go
+      pushd "$SPREAD_PATH"
+
   charms/worker/tests/spread/integration/:
     summary: Spread tests - charm integration tests
     environment:

@@ -1,0 +1,14 @@
+summary: Run simple end-to-end test for the "hello" job
+execute: |
+  pushd "$SPREAD_PATH"
+  source "${SPREAD_PATH}/tests/lib/common.sh"
+
+  start_temporal
+  start_worker
+  ubuntu-release hello 2>&1 | MATCH "Hello Ubuntu workflow complete"
+restore: |
+  if [[ -z "${CI:-}" ]]; then
+    source "${SPREAD_PATH}/tests/lib/common.sh"
+    remove_temporal
+    remove_worker
+  fi

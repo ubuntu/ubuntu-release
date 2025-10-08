@@ -3,10 +3,10 @@ name: CI
 on:
   push:
     branches:
-    - main
+      - main
   pull_request:
     branches:
-    - main
+      - main
 
 env:
   DEBIAN_FRONTEND: noninteractive
@@ -50,6 +50,16 @@ jobs:
           git diff --compact-summary --exit-code || \
             (echo; echo "Unexpected difference in directories after go fmt. Run 'gofmt -w -l -s .' command and commit."; exit 1)
 
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      - run: go test -v -race ./...
+
   woke:
     name: woke
     runs-on: ubuntu-latest
@@ -61,3 +71,53 @@ jobs:
         with:
           # Cause the check to fail on any broke rules
           fail-on-error: true
+
+  define-integration-matrix:
+    name: Define spread integration test matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      suites: ${{ steps.suites.outputs.suites }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Generate matrix list
+        id: suites
+        run: |
+          # Charmcraft is the easiest way to get spread and consistent with the rest of the project CI with charms
+          sudo snap install charmcraft --classic
+          list="$(charmcraft test --list tests/ | cut -d "/" -f2 | jq -r -ncR '[inputs | select(length>0)]')"
+          echo "suites=$list"
+          echo "suites=$list" >> $GITHUB_OUTPUT
+        working-directory: charms/${{ matrix.charm }}
+
+  integration-test:
+    name: Functional Tests - (${{ matrix.suite }})
+    runs-on: [self-hosted, large, noble, amd64]
+    needs:
+      - lint
+      - format
+      - woke
+      - define-integration-matrix
+      - unit-test
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON(needs.define-integration-matrix.outputs.suites) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup LXD
+        uses: canonical/setup-lxd@a3c85fc6fb7fff43fcfeae87659e41a8f635b7dd
+
+      - name: Run integration tests
+        run: |
+          sudo snap install charmcraft --classic
+          charmcraft test -v "lxd:ubuntu-24.04:tests/${MATRIX_SUITE}"
+        env:
+          MATRIX_SUITE: ${{ matrix.suite }}

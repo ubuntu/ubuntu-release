@@ -14,33 +14,42 @@ be taken into account early.
 
 `ubuntu-release` is a Go utility to facilitate the Ubuntu Release activities.
 
-
 ## Quick start local run
 
 To start the local Temporal server:
-```
+
+```bash
 temporal server start-dev
 ```
 
 To start the Temporal worker:
-```
+
+```bash
 go run ubuntu-release-worker/main.go
 ```
 
 To start the HelloUbuntu Temporal workflow:
-```
+
+```bash
 go run ubuntu-release/main.go hello
 ```
 
+## Running Tests
 
-## charm bits
+The `ubuntu-release` project has both unit and integration tests. To run them:
 
-The charming part in `charms/worker` is roughly based on [this
-tutorial](https://documentation.ubuntu.com/ops/latest/tutorial/from-zero-to-hero-write-your-first-kubernetes-charm/).
-It's a very good starting point to start playing with a local `juju`+`microk8s`
-setup.
+```bash
+# Unit tests
+❯ go test ./...
 
-The `rockcraft` part is using the `go-framework` used for [12 factor apps](https://documentation.ubuntu.com/rockcraft/1.13.0/how-to/web-app-rocks/set-up-web-app-rock/).
+# List integration tests
+❯ spread -list ubuntu-release
 
-Github Action is already fully configured to build and release the charms to
-Charmhub, so hopefully you shouldn't have to run that locally too much.
+# Run an integration test
+❯ spread -v lxd:ubuntu-24.04:tests/hello
+```
+
+
+## Charm Test & Release
+
+See [Charm README](charms/worker/README.md).
