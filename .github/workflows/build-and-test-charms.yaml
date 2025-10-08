@@ -179,8 +179,8 @@ jobs:
         working-directory: charms/${{ matrix.charm }}
 
   functional-test:
-    name: Functional Tests - (${{ matrix.suite }})
-    runs-on: [self-hosted, large, noble, amd64]
+    name: Functional Tests (${{ matrix.suite }})
+    runs-on: ubuntu-latest
     needs:
       - define-charm-list
       - lint
