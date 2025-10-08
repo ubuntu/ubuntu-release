@@ -663,6 +663,7 @@ name = "ubuntu-release"
 source = { virtual = "." }
 dependencies = [
     { name = "ops" },
+    { name = "pydantic" },
 ]
 
 [package.optional-dependencies]
@@ -671,7 +672,6 @@ dev = [
     { name = "coverage", extra = ["toml"] },
     { name = "jubilant" },
     { name = "ops", extra = ["testing"] },
-    { name = "pydantic" },
     { name = "pytest" },
     { name = "requests" },
     { name = "ruff" },
@@ -686,7 +686,7 @@ requires-dist = [
     { name = "jubilant", marker = "extra == 'dev'" },
     { name = "ops", specifier = ">=3.0.0" },
     { name = "ops", extras = ["testing"], marker = "extra == 'dev'" },
-    { name = "pydantic", marker = "extra == 'dev'" },
+    { name = "pydantic" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "requests", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'" },
