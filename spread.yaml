@@ -1,4 +1,4 @@
-project: worker-charm-tests
+project: ubuntu-release
 kill-timeout: 90m
 workers: 1
 
@@ -11,14 +11,7 @@ backends:
     # This allocate block can be removed once the LXD VM support is landed in
     # spread: https://github.com/canonical/spread/pull/185
     allocate: |
-      # This is a temporary hack to remind the user to run the 'go build' command before
-      # trying to run tests where the release binary is required..
-      if [[ ! -f "$PWD/ubuntu-release-worker" ]]; then
-        echo "Release binary 'ubuntu-release-worker' is missing. Run 'go build -o ubuntu-release-worker ../../ubuntu-release-worker/main.go' and re-run 'spread'."
-        exit 1
-      fi
-
-      CONTAINER_NAME="worker-${SPREAD_SYSTEM/./-}-${RANDOM}"
+      CONTAINER_NAME="ubuntu-release-${SPREAD_SYSTEM/./-}-${RANDOM}"
       DISK="${DISK:-20}"
       CPU="${CPU:-4}"
       MEM="${MEM:-8}"
@@ -26,7 +19,7 @@ backends:
       lxc launch --vm \
         "${SPREAD_SYSTEM/-/:}" \
         "${CONTAINER_NAME}" \
-        -c user.user-data="$(sed "s|SPREAD_PASSWORD|$SPREAD_PASSWORD|g" tests/spread/cloud-config.yaml)" \
+        -c user.user-data="$(sed "s|SPREAD_PASSWORD|$SPREAD_PASSWORD|g" charms/worker/tests/spread/cloud-config.yaml)" \
         -c limits.cpu="${CPU}" \
         -c limits.memory="${MEM}GiB" \
         -d root,size="${DISK}GiB"
@@ -46,11 +39,18 @@ backends:
           workers: 1
 
 suites:
-  tests/spread/integration/:
+  charms/worker/tests/spread/integration/:
     summary: Spread tests - charm integration tests
     environment:
       CONCIERGE_JUJU_CHANNEL/juju_3_6: 3.6/stable
     prepare-each: |
+      # This is a temporary hack to remind the user to run the 'go build' command before
+      # trying to run tests where the release binary is required..
+      if [[ ! -f "${SPREAD_PATH}/charms/worker/ubuntu-release-worker" ]]; then
+        echo "Release binary 'ubuntu-release-worker' is missing. Run 'go build -o charms/worker/ubuntu-release-worker ubuntu-release-worker/main.go' and re-run 'spread'."
+        exit 1
+      fi
+
       snap install --classic concierge
       concierge prepare --trace -p machine --extra-snaps astral-uv --extra-debs make
 
@@ -59,8 +59,8 @@ suites:
       # This is a performance optimisation to prevent the need to rebuild the charm
       # every time the test is run. If the charm is not found, the test suite
       # will automatically build it anyway.
-      if [[ -f "$PWD/ubuntu-release-worker_ubuntu@24.04-amd64.charm" ]]; then
-        chown $(id -u):$(id -g) $PWD/ubuntu-release-worker_ubuntu@24.04-amd64.charm
+      if [[ -f "$SPREAD_PATH/charms/worker/ubuntu-release-worker_ubuntu@24.04-amd64.charm" ]]; then
+        chown $(id -u):$(id -g) $SPREAD_PATH/charms/worker/ubuntu-release-worker_ubuntu@24.04-amd64.charm
       fi
     restore-each: |
       if [[ -z "${CI:-}" ]]; then
@@ -70,9 +70,15 @@ suites:
         mkdir -p "$SPREAD_PATH"
       fi
 
-  tests/spread/functional/:
+  charms/worker/tests/spread/functional/:
     summary: Spread tests - functional tests
     prepare-each: |
+      # This is a temporary hack to remind the user to run the 'go build' command before
+      # trying to run tests where the release binary is required..
+      if [[ ! -f "${SPREAD_PATH}/charms/worker/ubuntu-release-worker" ]]; then
+        echo "Release binary 'ubuntu-release-worker' is missing. Run 'go build -o charms/worker/ubuntu-release-worker ubuntu-release-worker/main.go' and re-run 'spread'."
+        exit 1
+      fi
       sudo apt update
       sudo apt install -y make
       sudo snap install --classic astral-uv

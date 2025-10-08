@@ -4,18 +4,33 @@ Each folder each represent one charm, representing one component of the Ubuntu R
 
 ## Testing locally
 
-In each folder, one can get the integration tests running by using the following commands:
-* `charmcraft pack`
-  This will pack the charm in its own folder. The tests have some magic fixtures
-  to find the right `.charm` files to use in the tests.
-* `uv run pytest tests/ -vv --log-level=INFO -o log_cli=1`
-  This is for maximum live verbosity. You don't actually need all those flags to
-  just run the tests, but I find that convenient in development.
+### Charm tests
 
-NOTE: for the `worker` charm, you'll need an `ubuntu-release-worker` binary to
-sit next to `charmcraft.yaml`. This can be generated once with:
+The charm has unit, functional and integration tests. To run them, follow these steps:
+
+```bash
+# Unit tests
+❯ make -C charms/worker unit
+
+# List spread tests (for functional and integration tests)
+❯ charmcraft test --list charms/
+lxd:ubuntu-24.04:charms/worker/tests/spread/functional/temporal
+lxd:ubuntu-24.04:charms/worker/tests/spread/functional/worker
+lxd:ubuntu-24.04:charms/worker/tests/spread/integration/deploy-charm:juju_3_6
+lxd:ubuntu-24.04:charms/worker/tests/spread/integration/ingress:juju_3_6
+
+# Run a particular functional test
+❯ charmcraft test lxd:ubuntu-24.04:charms/worker/tests/spread/functional/temporal
+
+# Run a particular integration test
+❯ charmcraft test lxd:ubuntu-24.04:charms/worker/tests/spread/integration/ingress:juju_3_6
 ```
-go build -o ubuntu-release-worker ../../ubuntu-release-worker/main.go
+
+**NOTE**: before the functional and integration tests can be run, the `ubuntu-release-worker`
+binary needs to be built and placed in the charm direction:
+
+```bash
+go build -o charms/worker/ubuntu-release-worker ubuntu-release-worker/main.go
 ```
 
 ## Generating the charmhub token for the CI

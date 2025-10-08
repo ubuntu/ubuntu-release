@@ -8,6 +8,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   DEBIAN_FRONTEND: noninteractive
   ROCKCRAFT_ENABLE_EXPERIMENTAL_EXTENSIONS: "True"
@@ -49,8 +53,7 @@ jobs:
       - name: Install dependencies
         run: sudo snap install astral-uv --classic
       - name: Run linters
-        run: make lint
-        working-directory: charms/${{ matrix.charm }}
+        run: make -C charms/${{ matrix.charm }} lint
 
   unit-test:
     name: Unit tests
@@ -69,8 +72,7 @@ jobs:
         run: |
           sudo snap install --classic astral-uv
       - name: Run tests
-        run: make unit
-        working-directory: charms/${{ matrix.charm }}
+        run: make -C charms/${{ matrix.charm }} unit
 
   lib-check:
     name: Check libraries - (${{ matrix.charm }})
@@ -123,8 +125,7 @@ jobs:
         run: |
           version="$(git describe --tags --always --dirty)"
           echo "version: $version"
-          go build -ldflags="-X main.Version=$version" -o ubuntu-release-worker ../../ubuntu-release-worker/main.go
-        working-directory: charms/${{ matrix.charm }}
+          go build -ldflags="-X main.Version=$version" -o charms/${{ matrix.charm }}/ubuntu-release-worker ubuntu-release-worker/main.go
 
       - name: Cache wheels
         id: cache-wheels
@@ -172,7 +173,7 @@ jobs:
       - name: Generate matrix list
         id: suites
         run: |
-          list="$(charmcraft test --list lxd:ubuntu-24.04:tests/spread/functional/ | sed "s|lxd:ubuntu-24.04:tests/spread/functional/||g" | jq -r -ncR '[inputs | select(length>0)]')"
+          list="$(charmcraft test --list charms/worker/tests/spread/functional/ | cut -d "/" -f6 | jq -r -ncR '[inputs | select(length>0)]')"
           echo "suites=$list"
           echo "suites=$list" >> $GITHUB_OUTPUT
         working-directory: charms/${{ matrix.charm }}
@@ -210,7 +211,7 @@ jobs:
 
       - name: Run functional tests
         run: |
-          charmcraft test -v "github-ci:ubuntu-24.04:tests/spread/functional/${MATRIX_SUITE}"
+          charmcraft test -v "lxd:ubuntu-24.04:charms/worker/tests/spread/functional/${MATRIX_SUITE}"
         env:
           MATRIX_SUITE: ${{ matrix.suite }}
 
@@ -236,7 +237,7 @@ jobs:
       - name: Generate matrix list
         id: suites
         run: |
-          list="$(charmcraft test --list lxd:ubuntu-24.04:tests/spread/integration/ | sed "s|lxd:ubuntu-24.04:tests/spread/integration/||g" | jq -r -ncR '[inputs | select(length>0)]')"
+          list="$(charmcraft test --list charms/worker/tests/spread/integration/ | cut -d "/" -f6 | jq -r -ncR '[inputs | select(length>0)]')"
           echo "suites=$list"
           echo "suites=$list" >> $GITHUB_OUTPUT
         working-directory: charms/${{ matrix.charm }}
@@ -274,12 +275,12 @@ jobs:
 
       - name: Run integration tests
         run: |
-          charmcraft test -v "github-ci:ubuntu-24.04:tests/spread/integration/${MATRIX_SUITE}"
+          charmcraft test -v "lxd:ubuntu-24.04:charms/worker/tests/spread/integration/${MATRIX_SUITE}"
         env:
           MATRIX_SUITE: ${{ matrix.suite }}
 
   upload-charm:
-    name: Define spread integration test matrix
+    name: Upload charm to Charmhub
     runs-on: ubuntu-24.04
     needs:
       - integration-test

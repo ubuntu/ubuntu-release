@@ -1,7 +1,7 @@
 summary: Run basic deployment tests with ingress
 
 execute: |
-  pushd "$SPREAD_PATH"
+  pushd "$SPREAD_PATH/charms/worker"
 
   args="tests/integration/test_ingress.py"
 

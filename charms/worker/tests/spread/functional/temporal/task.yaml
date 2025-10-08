@@ -1,11 +1,11 @@
 summary: Run temporal python module functional tests
 
 execute: |
-  pushd "$SPREAD_PATH"
+  pushd "$SPREAD_PATH/charms/worker"
   make functional ARGS="tests/functional/test_temporal.py"
 
 restore: |
   if [[ -z "${CI:-}" ]]; then
-      source ${SPREAD_PATH}/tests/spread/common.sh
+      source $SPREAD_PATH/charms/worker/tests/spread/common.sh
       cleanup_temporal
   fi
