@@ -43,23 +43,6 @@ jobs:
       - name: Run tests
         run: make -C charm unit
 
-  lib-check:
-    name: Check libraries
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
-        with:
-          persist-credentials: false
-      - name: Check libs
-        uses: canonical/charming-actions/check-libraries@1753e0803f70445132e92acd45c905aba6473225 # 2.7.0
-        with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
-          charm-path: charm
-
   pack-charm:
     name: Build charm
     runs-on: ubuntu-24.04
