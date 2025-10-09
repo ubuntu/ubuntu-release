@@ -10,27 +10,27 @@ The charm has unit, functional and integration tests. To run them, follow these 
 
 ```bash
 # Unit tests
-❯ make -C charms/worker unit
+❯ make -C charm unit
 
 # List spread tests (for functional and integration tests)
 ❯ charmcraft test --list charms/
-lxd:ubuntu-24.04:charms/worker/tests/spread/functional/temporal
-lxd:ubuntu-24.04:charms/worker/tests/spread/functional/worker
-lxd:ubuntu-24.04:charms/worker/tests/spread/integration/deploy-charm:juju_3_6
-lxd:ubuntu-24.04:charms/worker/tests/spread/integration/ingress:juju_3_6
+lxd:ubuntu-24.04:charm/tests/spread/functional/temporal
+lxd:ubuntu-24.04:charm/tests/spread/functional/worker
+lxd:ubuntu-24.04:charm/tests/spread/integration/deploy-charm:juju_3_6
+lxd:ubuntu-24.04:charm/tests/spread/integration/ingress:juju_3_6
 
 # Run a particular functional test
-❯ charmcraft test lxd:ubuntu-24.04:charms/worker/tests/spread/functional/temporal
+❯ charmcraft test lxd:ubuntu-24.04:charm/tests/spread/functional/temporal
 
 # Run a particular integration test
-❯ charmcraft test lxd:ubuntu-24.04:charms/worker/tests/spread/integration/ingress:juju_3_6
+❯ charmcraft test lxd:ubuntu-24.04:charm/tests/spread/integration/ingress:juju_3_6
 ```
 
 **NOTE**: before the functional and integration tests can be run, the `ubuntu-release-worker`
 binary needs to be built and placed in the charm direction:
 
 ```bash
-go build -o charms/worker/ubuntu-release-worker ubuntu-release-worker/main.go
+go build -o charm/ubuntu-release-worker ubuntu-release-worker/main.go
 ```
 
 ## Generating the charmhub token for the CI

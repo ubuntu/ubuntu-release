@@ -14,37 +14,11 @@ concurrency:
 
 env:
   DEBIAN_FRONTEND: noninteractive
-  ROCKCRAFT_ENABLE_EXPERIMENTAL_EXTENSIONS: "True"
 
 jobs:
-  define-charm-list:
-    name: Define charm list to build
-    runs-on: ubuntu-24.04
-    outputs:
-      charms: ${{ steps.charms.outputs.charms }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
-        with:
-          persist-credentials: false
-
-      - name: Generate list
-        id: charms
-        run: |
-          list="$(find . -mindepth 1 -maxdepth 1 -type d -printf '"%P", ')"
-          echo "charms=[$list]"
-          echo "charms=[$list]" >> $GITHUB_OUTPUT
-        working-directory: charms
-
   lint:
-    name: Lint - (${{ matrix.charm }})
+    name: Lint - (worker)
     runs-on: ubuntu-24.04
-    needs:
-      - define-charm-list
-    strategy:
-      fail-fast: false
-      matrix:
-        charm: ${{ fromJSON(needs.define-charm-list.outputs.charms) }}
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -53,16 +27,11 @@ jobs:
       - name: Install dependencies
         run: sudo snap install astral-uv --classic
       - name: Run linters
-        run: make -C charms/${{ matrix.charm }} lint
+        run: make -C charm lint
 
   unit-test:
     name: Unit tests
     runs-on: ubuntu-24.04
-    needs:
-      - define-charm-list
-    strategy:
-      matrix:
-        charm: ${{ fromJSON(needs.define-charm-list.outputs.charms) }}
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -72,16 +41,11 @@ jobs:
         run: |
           sudo snap install --classic astral-uv
       - name: Run tests
-        run: make -C charms/${{ matrix.charm }} unit
+        run: make -C charm unit
 
   lib-check:
-    name: Check libraries - (${{ matrix.charm }})
+    name: Check libraries
     runs-on: ubuntu-24.04
-    needs:
-      - define-charm-list
-    strategy:
-      matrix:
-        charm: ${{ fromJSON(needs.define-charm-list.outputs.charms) }}
     permissions:
       contents: write
       pull-requests: write
@@ -89,22 +53,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
-          # fetch-depth: 0 # TODO optimize that for speed
           persist-credentials: false
       - name: Check libs
         uses: canonical/charming-actions/check-libraries@1753e0803f70445132e92acd45c905aba6473225 # 2.7.0
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
-          charm-path: charms/${{ matrix.charm }}
+          charm-path: charm
 
   pack-charm:
-    name: Build charm - (${{ matrix.charm }})
+    name: Build charm
     runs-on: ubuntu-24.04
-    needs:
-      - define-charm-list
-    strategy:
-      matrix:
-        charm: ${{ fromJSON(needs.define-charm-list.outputs.charms) }}
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -125,7 +83,7 @@ jobs:
         run: |
           version="$(git describe --tags --always --dirty)"
           echo "version: $version"
-          go build -ldflags="-X main.Version=$version" -o charms/${{ matrix.charm }}/ubuntu-release-worker ubuntu-release-worker/main.go
+          go build -ldflags="-X main.Version=$version" -o charm/ubuntu-release-worker ubuntu-release-worker/main.go
 
       - name: Cache wheels
         id: cache-wheels
@@ -143,22 +101,16 @@ jobs:
         run: |
           sudo snap install --classic charmcraft
           charmcraft pack -v
-        working-directory: charms/${{ matrix.charm }}
 
       - name: Upload charm artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ${{ matrix.charm }}
-          path: charms/${{ matrix.charm }}/*.charm
+          name: worker
+          path: charm/*.charm
 
   define-functional-matrix:
     name: Define spread functional test matrix
     runs-on: ubuntu-24.04
-    needs:
-      - define-charm-list
-    strategy:
-      matrix:
-        charm: ${{ fromJSON(needs.define-charm-list.outputs.charms) }}
     outputs:
       suites: ${{ steps.suites.outputs.suites }}
     steps:
@@ -173,16 +125,15 @@ jobs:
       - name: Generate matrix list
         id: suites
         run: |
-          list="$(charmcraft test --list charms/worker/tests/spread/functional/ | cut -d "/" -f6 | jq -r -ncR '[inputs | select(length>0)]')"
+          list="$(charmcraft test --list charm/tests/spread/functional/ | rev | cut -d "/" -f1 | rev | jq -r -ncR '[inputs | select(length>0)]')"
           echo "suites=$list"
           echo "suites=$list" >> $GITHUB_OUTPUT
-        working-directory: charms/${{ matrix.charm }}
+        working-directory: charm
 
   functional-test:
     name: Functional Tests (${{ matrix.suite }})
     runs-on: ubuntu-latest
     needs:
-      - define-charm-list
       - lint
       - pack-charm
       - define-functional-matrix
@@ -191,7 +142,6 @@ jobs:
       fail-fast: false
       matrix:
         suite: ${{ fromJSON(needs.define-functional-matrix.outputs.suites) }}
-        charm: ${{ fromJSON(needs.define-charm-list.outputs.charms) }}
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -201,7 +151,7 @@ jobs:
       - name: Download charm artifact
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
-          name: ${{ matrix.charm }}
+          name: worker
 
       - name: Setup LXD
         uses: canonical/setup-lxd@a3c85fc6fb7fff43fcfeae87659e41a8f635b7dd
@@ -217,25 +167,20 @@ jobs:
         run: |
           version="$(git describe --tags --always --dirty)"
           echo "version: $version"
-          go build -ldflags="-X main.Version=$version" -o charms/${{ matrix.charm }}/ubuntu-release-worker ubuntu-release-worker/main.go
+          go build -ldflags="-X main.Version=$version" -o charm/ubuntu-release-worker ubuntu-release-worker/main.go
 
       - name: Install charmcraft
         run: sudo snap install charmcraft --classic
 
       - name: Run functional tests
         run: |
-          charmcraft test -v "lxd:ubuntu-24.04:charms/worker/tests/spread/functional/${MATRIX_SUITE}"
+          charmcraft test -v "lxd:ubuntu-24.04:charm/tests/spread/functional/${MATRIX_SUITE}"
         env:
           MATRIX_SUITE: ${{ matrix.suite }}
 
   define-integration-matrix:
     name: Define spread integration test matrix
     runs-on: ubuntu-24.04
-    needs:
-      - define-charm-list
-    strategy:
-      matrix:
-        charm: ${{ fromJSON(needs.define-charm-list.outputs.charms) }}
     outputs:
       suites: ${{ steps.suites.outputs.suites }}
     steps:
@@ -250,16 +195,15 @@ jobs:
       - name: Generate matrix list
         id: suites
         run: |
-          list="$(charmcraft test --list charms/worker/tests/spread/integration/ | cut -d "/" -f6 | jq -r -ncR '[inputs | select(length>0)]')"
+          list="$(charmcraft test --list charm/tests/spread/integration/ | rev | cut -d "/" -f1 | rev | jq -r -ncR '[inputs | select(length>0)]')"
           echo "suites=$list"
           echo "suites=$list" >> $GITHUB_OUTPUT
-        working-directory: charms/${{ matrix.charm }}
+        working-directory: charm
 
   integration-test:
     name: Integration Tests - (${{ matrix.suite }})
     runs-on: [self-hosted, large, noble, amd64]
     needs:
-      - define-charm-list
       - lint
       - pack-charm
       - define-integration-matrix
@@ -268,7 +212,6 @@ jobs:
       fail-fast: false
       matrix:
         suite: ${{ fromJSON(needs.define-integration-matrix.outputs.suites) }}
-        charm: ${{ fromJSON(needs.define-charm-list.outputs.charms) }}
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -278,7 +221,7 @@ jobs:
       - name: Download charm artifact
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
-          name: ${{ matrix.charm }}
+          name: worker
 
       - name: Setup LXD
         uses: canonical/setup-lxd@a3c85fc6fb7fff43fcfeae87659e41a8f635b7dd
@@ -294,14 +237,14 @@ jobs:
         run: |
           version="$(git describe --tags --always --dirty)"
           echo "version: $version"
-          go build -ldflags="-X main.Version=$version" -o charms/${{ matrix.charm }}/ubuntu-release-worker ubuntu-release-worker/main.go
+          go build -ldflags="-X main.Version=$version" -o charm/ubuntu-release-worker ubuntu-release-worker/main.go
 
       - name: Install charmcraft
         run: sudo snap install charmcraft --classic
 
       - name: Run integration tests
         run: |
-          charmcraft test -v "lxd:ubuntu-24.04:charms/worker/tests/spread/integration/${MATRIX_SUITE}"
+          charmcraft test -v "lxd:ubuntu-24.04:charm/tests/spread/integration/${MATRIX_SUITE}"
         env:
           MATRIX_SUITE: ${{ matrix.suite }}
 
@@ -310,19 +253,16 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - integration-test
-    strategy:
-      matrix:
-        charm: ${{ fromJSON(needs.define-charm-list.outputs.charms) }}
     steps:
       - name: Download charm artifact
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
-          name: ${{ matrix.charm }}
+          name: worker
 
       - name: Upload charm to charmhub
         uses: canonical/charming-actions/upload-charm@1753e0803f70445132e92acd45c905aba6473225 # 2.7.0
         with:
           credentials: "${{ secrets.CHARMHUB_TOKEN }}"
           github-token: "${{ secrets.GITHUB_TOKEN }}"
-          built-charm-path: ubuntu-release-${{ matrix.charm }}_ubuntu@24.04-amd64.charm
+          built-charm-path: ubuntu-release-worker_ubuntu@24.04-amd64.charm
         if: github.ref == 'refs/heads/main'

@@ -8,7 +8,7 @@ description: |
   This is a machine charm that will deploy its own local Temporal server.
 links:
   source:
-    - https://github.com/ubuntu/ubuntu-release/tree/main/charms/worker
+    - https://github.com/ubuntu/ubuntu-release/tree/main/charm
 
 platforms:
   ubuntu@24.04:amd64:

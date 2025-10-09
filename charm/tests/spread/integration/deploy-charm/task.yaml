@@ -1,9 +1,9 @@
-summary: Run basic deployment tests with ingress
+summary: Run basic deployment tests
 
 execute: |
-  pushd "$SPREAD_PATH/charms/worker"
+  pushd "$SPREAD_PATH/charm"
 
-  args="tests/integration/test_ingress.py"
+  args="tests/integration/test_deploy.py"
 
   if [[ -f "$PWD/ubuntu-release-worker_ubuntu@24.04-amd64.charm" ]]; then
     args="--charm-path=$PWD/ubuntu-release-worker_ubuntu@24.04-amd64.charm $args"

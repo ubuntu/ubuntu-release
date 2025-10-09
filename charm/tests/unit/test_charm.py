@@ -7,25 +7,23 @@ These tests only cover those methods that do not require internet access,
 and do not attempt to manipulate the underlying machine.
 """
 
+from pathlib import Path
 from subprocess import CalledProcessError
 from unittest.mock import PropertyMock, patch
 
 import pytest
+import yaml
 from charms.operator_libs_linux.v2 import snap
-from ops.testing import (
-    ActiveStatus,
-    BlockedStatus,
-    Context,
-    MaintenanceStatus,
-    State,
-)
+from ops.testing import ActiveStatus, BlockedStatus, Context, MaintenanceStatus, State
 
 from charm import WorkerCharm
 
 
 @pytest.fixture
 def ctx():
-    return Context(WorkerCharm)
+    charmcraft_yaml_path = Path(__file__).parent.parent.parent.parent / "charmcraft.yaml"
+    meta = yaml.safe_load((charmcraft_yaml_path).read_text())
+    return Context(WorkerCharm, meta=meta)
 
 
 @pytest.fixture

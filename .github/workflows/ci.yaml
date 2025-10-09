@@ -88,10 +88,9 @@ jobs:
         run: |
           # Charmcraft is the easiest way to get spread and consistent with the rest of the project CI with charms
           sudo snap install charmcraft --classic
-          list="$(charmcraft test --list tests/ | cut -d "/" -f2 | jq -r -ncR '[inputs | select(length>0)]')"
+          list="$(charmcraft test --list tests/ | rev | cut -d "/" -f1 | rev | jq -r -ncR '[inputs | select(length>0)]')"
           echo "suites=$list"
           echo "suites=$list" >> $GITHUB_OUTPUT
-        working-directory: charms/${{ matrix.charm }}
 
   integration-test:
     name: Integration Tests (${{ matrix.suite }})

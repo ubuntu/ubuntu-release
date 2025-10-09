@@ -52,4 +52,4 @@ The `ubuntu-release` project has both unit and integration tests. To run them:
 
 ## Charm Test & Release
 
-See [Charm README](charms/worker/README.md).
+See [Charm README](charm/README.md).

@@ -1,11 +1,11 @@
 summary: Run worker python module functional tests
 
 execute: |
-  pushd "$SPREAD_PATH/charms/worker"
+  pushd "$SPREAD_PATH/charm"
   make functional ARGS="tests/functional/test_worker.py"
 
 restore: |
   if [[ -z "${CI:-}" ]]; then
-      source $SPREAD_PATH/charms/worker/tests/spread/common.sh
+      source $SPREAD_PATH/charm/tests/spread/common.sh
       cleanup_worker
   fi

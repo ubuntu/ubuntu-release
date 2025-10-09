@@ -20,7 +20,7 @@ backends:
       lxc launch --vm \
         "${SPREAD_SYSTEM/-/:}" \
         "${CONTAINER_NAME}" \
-        -c user.user-data="$(sed "s|SPREAD_PASSWORD|$SPREAD_PASSWORD|g" charms/worker/tests/spread/cloud-config.yaml)" \
+        -c user.user-data="$(sed "s|SPREAD_PASSWORD|$SPREAD_PASSWORD|g" charm/tests/spread/cloud-config.yaml)" \
         -c limits.cpu="${CPU}" \
         -c limits.memory="${MEM}GiB" \
         -d root,size="${DISK}GiB"
@@ -48,15 +48,15 @@ suites:
       go build -o /usr/bin/ubuntu-release ${SPREAD_PATH}/ubuntu-release/main.go
       pushd "$SPREAD_PATH"
 
-  charms/worker/tests/spread/integration/:
+  charm/tests/spread/integration/:
     summary: Spread tests - charm integration tests
     environment:
       CONCIERGE_JUJU_CHANNEL/juju_3_6: 3.6/stable
     prepare-each: |
       # This is a temporary hack to remind the user to run the 'go build' command before
       # trying to run tests where the release binary is required..
-      if [[ ! -f "${SPREAD_PATH}/charms/worker/ubuntu-release-worker" ]]; then
-        echo "Release binary 'ubuntu-release-worker' is missing. Run 'go build -o charms/worker/ubuntu-release-worker ubuntu-release-worker/main.go' and re-run 'spread'."
+      if [[ ! -f "${SPREAD_PATH}/charm/ubuntu-release-worker" ]]; then
+        echo "Release binary 'ubuntu-release-worker' is missing. Run 'go build -o charm/ubuntu-release-worker ubuntu-release-worker/main.go' and re-run 'spread'."
         exit 1
       fi
 
@@ -68,8 +68,8 @@ suites:
       # This is a performance optimisation to prevent the need to rebuild the charm
       # every time the test is run. If the charm is not found, the test suite
       # will automatically build it anyway.
-      if [[ -f "$SPREAD_PATH/charms/worker/ubuntu-release-worker_ubuntu@24.04-amd64.charm" ]]; then
-        chown $(id -u):$(id -g) $SPREAD_PATH/charms/worker/ubuntu-release-worker_ubuntu@24.04-amd64.charm
+      if [[ -f "$SPREAD_PATH/charm/ubuntu-release-worker_ubuntu@24.04-amd64.charm" ]]; then
+        chown $(id -u):$(id -g) $SPREAD_PATH/charm/ubuntu-release-worker_ubuntu@24.04-amd64.charm
       fi
     restore-each: |
       if [[ -z "${CI:-}" ]]; then
@@ -79,13 +79,13 @@ suites:
         mkdir -p "$SPREAD_PATH"
       fi
 
-  charms/worker/tests/spread/functional/:
+  charm/tests/spread/functional/:
     summary: Spread tests - functional tests
     prepare-each: |
       # This is a temporary hack to remind the user to run the 'go build' command before
       # trying to run tests where the release binary is required..
-      if [[ ! -f "${SPREAD_PATH}/charms/worker/ubuntu-release-worker" ]]; then
-        echo "Release binary 'ubuntu-release-worker' is missing. Run 'go build -o charms/worker/ubuntu-release-worker ubuntu-release-worker/main.go' and re-run 'spread'."
+      if [[ ! -f "${SPREAD_PATH}/charm/ubuntu-release-worker" ]]; then
+        echo "Release binary 'ubuntu-release-worker' is missing. Run 'go build -o charm/ubuntu-release-worker ubuntu-release-worker/main.go' and re-run 'spread'."
         exit 1
       fi
       sudo apt update

@@ -41,6 +41,6 @@ ubuntu_release.egg-info
 *.rock
 *.docker
 
-/charms/worker/ubuntu-release-worker
+/charm/ubuntu-release-worker
 
 .spread*.yaml
