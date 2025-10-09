@@ -48,6 +48,9 @@ ubuntu_release.egg-info
 *.rock
 *.docker
 *.charm
+# Charmcraft keeps fetching libraries into the root
+# even though the project is one level deeper.
+/lib/charms
 
 /charm/ubuntu-release-worker
 

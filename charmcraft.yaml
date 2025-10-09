@@ -26,7 +26,7 @@ parts:
       - CGO_ENABLED: 0
     override-build: |
       version="$(git rev-parse --short HEAD)"
-      go build -o $CRAFT_PART_INSTALL/ubuntu-release-worker -ldflags="-X root.version=$version" cmd/ubuntu-release-worker
+      go build -o $CRAFT_PART_INSTALL/ubuntu-release-worker -ldflags="-X main.version=$version" ./cmd/ubuntu-release-worker
   charm:
     plugin: uv
     source: charm/
