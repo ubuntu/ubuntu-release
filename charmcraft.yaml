@@ -14,14 +14,22 @@ platforms:
   ubuntu@24.04:amd64:
 
 parts:
-  # Get the worker in the charm
   ubuntu-release-worker:
-    source: ubuntu-release-worker
-    source-type: file
-    plugin: dump
+    source: .
+    plugin: nil
+    source-type: local
+    build-snaps:
+      - go/latest/stable
+    build-packages:
+      - git
+    build-environment:
+      - CGO_ENABLED: 0
+    override-build: |
+      version="$(git rev-parse --short HEAD)"
+      go build -o $CRAFT_PART_INSTALL/ubuntu-release-worker -ldflags="-X main.Version=$version" ubuntu-release-worker/main.go
   charm:
     plugin: uv
-    source: .
+    source: charm/
     build-snaps:
       - astral-uv
 

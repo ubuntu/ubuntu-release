@@ -6,6 +6,7 @@ from typing import Generator
 
 import jubilant
 import pytest
+import os
 
 logger = logging.getLogger()
 
@@ -16,15 +17,18 @@ def worker_charm_path(request):
     if charm_file:
         return charm_file
 
+    working_dir = os.getenv("SPREAD_PATH", Path("."))
+
     subprocess.run(
         ["/snap/bin/charmcraft", "pack", "--verbose"],
-        check=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        cwd=working_dir,
+        check=True,
     )
 
-    return next(Path.glob(Path("."), "*.charm")).absolute()
+    return next(Path.glob(Path(working_dir), "*.charm")).absolute()
 
 
 @pytest.fixture(scope="module")

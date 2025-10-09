@@ -72,19 +72,6 @@ jobs:
       - name: Setup LXD
         uses: canonical/setup-lxd@a3c85fc6fb7fff43fcfeae87659e41a8f635b7dd
 
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: "go.mod"
-
-      - name: Build temporal worker
-        env:
-          CGO_ENABLED: 0
-        run: |
-          version="$(git describe --tags --always --dirty)"
-          echo "version: $version"
-          go build -ldflags="-X main.Version=$version" -o charm/ubuntu-release-worker ubuntu-release-worker/main.go
-
       - name: Cache wheels
         id: cache-wheels
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -148,26 +135,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download charm artifact
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-        with:
-          name: worker
-
       - name: Setup LXD
         uses: canonical/setup-lxd@a3c85fc6fb7fff43fcfeae87659e41a8f635b7dd
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: "go.mod"
-
-      - name: Build temporal worker
-        env:
-          CGO_ENABLED: 0
-        run: |
-          version="$(git describe --tags --always --dirty)"
-          echo "version: $version"
-          go build -ldflags="-X main.Version=$version" -o charm/ubuntu-release-worker ubuntu-release-worker/main.go
 
       - name: Install charmcraft
         run: sudo snap install charmcraft --classic
@@ -225,19 +194,6 @@ jobs:
 
       - name: Setup LXD
         uses: canonical/setup-lxd@a3c85fc6fb7fff43fcfeae87659e41a8f635b7dd
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: "go.mod"
-
-      - name: Build temporal worker
-        env:
-          CGO_ENABLED: 0
-        run: |
-          version="$(git describe --tags --always --dirty)"
-          echo "version: $version"
-          go build -ldflags="-X main.Version=$version" -o charm/ubuntu-release-worker ubuntu-release-worker/main.go
 
       - name: Install charmcraft
         run: sudo snap install charmcraft --classic

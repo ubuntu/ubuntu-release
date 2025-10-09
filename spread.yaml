@@ -53,13 +53,6 @@ suites:
     environment:
       CONCIERGE_JUJU_CHANNEL/juju_3_6: 3.6/stable
     prepare-each: |
-      # This is a temporary hack to remind the user to run the 'go build' command before
-      # trying to run tests where the release binary is required..
-      if [[ ! -f "${SPREAD_PATH}/charm/ubuntu-release-worker" ]]; then
-        echo "Release binary 'ubuntu-release-worker' is missing. Run 'go build -o charm/ubuntu-release-worker ubuntu-release-worker/main.go' and re-run 'spread'."
-        exit 1
-      fi
-
       snap install --classic concierge
       concierge prepare --trace -p machine --extra-snaps astral-uv --extra-debs make
 
@@ -82,19 +75,14 @@ suites:
   charm/tests/spread/functional/:
     summary: Spread tests - functional tests
     prepare-each: |
-      # This is a temporary hack to remind the user to run the 'go build' command before
-      # trying to run tests where the release binary is required..
-      if [[ ! -f "${SPREAD_PATH}/charm/ubuntu-release-worker" ]]; then
-        echo "Release binary 'ubuntu-release-worker' is missing. Run 'go build -o charm/ubuntu-release-worker ubuntu-release-worker/main.go' and re-run 'spread'."
-        exit 1
-      fi
-      sudo apt update
-      sudo apt install -y make
+      sudo apt-get update
+      sudo apt-get install -y make
       sudo snap install --classic astral-uv
+      sudo snap install --classic go
+      go build -o "${SPREAD_PATH}/charm/ubuntu-release-worker" ${SPREAD_PATH}/ubuntu-release-worker/main.go
 
 exclude:
   - .coverage
-  - .git
   - .github
   - .pytest_cache
   - .ruff_cache
