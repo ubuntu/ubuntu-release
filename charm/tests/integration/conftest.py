@@ -6,7 +6,6 @@ from typing import Generator
 
 import jubilant
 import pytest
-import os
 
 logger = logging.getLogger()
 

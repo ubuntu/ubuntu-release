@@ -18,7 +18,7 @@ func rootCmd() *cobra.Command {
 			logging.ParseLoggingFlags(cmd.Flags())
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Help()
+			_ = cmd.Help()
 		},
 	}
 
