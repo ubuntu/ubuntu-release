@@ -26,9 +26,16 @@ go.work.sum
 
 # env file
 .env
+venv/
+build/
+
 
 # Python stuff
 *__pycache__
+*.py[cod]
+.tox/
+.coverage
+
 
 # Editor/IDE
 .idea/
@@ -40,6 +47,7 @@ ubuntu_release.egg-info
 # *craft stuff
 *.rock
 *.docker
+*.charm
 
 /charm/ubuntu-release-worker
 
