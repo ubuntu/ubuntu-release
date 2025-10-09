@@ -43,9 +43,12 @@ suites:
   tests/:
     summary: Integration tests for `ubuntu-release`
     prepare-each: |
+      sudo apt-get update
+      sudo apt-get install -y git
+      git config --global --add safe.directory /root/proj
       sudo snap install go --classic
-      go build -o /usr/bin/ubuntu-release-worker ${SPREAD_PATH}/ubuntu-release-worker/main.go
-      go build -o /usr/bin/ubuntu-release ${SPREAD_PATH}/ubuntu-release/main.go
+      go build -o /usr/bin/ubuntu-release-worker ${SPREAD_PATH}/cmd/ubuntu-release-worker
+      go build -o /usr/bin/ubuntu-release ${SPREAD_PATH}/cmd/ubuntu-release
       pushd "$SPREAD_PATH"
 
   charm/tests/spread/integration/:
@@ -76,10 +79,11 @@ suites:
     summary: Spread tests - functional tests
     prepare-each: |
       sudo apt-get update
-      sudo apt-get install -y make
+      sudo apt-get install -y make git
+      git config --global --add safe.directory /root/proj
       sudo snap install --classic astral-uv
       sudo snap install --classic go
-      go build -o "${SPREAD_PATH}/charm/ubuntu-release-worker" ${SPREAD_PATH}/ubuntu-release-worker/main.go
+      go build -o "${SPREAD_PATH}/charm/ubuntu-release-worker" ${SPREAD_PATH}/cmd/ubuntu-release-worker
 
 exclude:
   - .coverage

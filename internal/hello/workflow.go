@@ -1,12 +1,6 @@
-/*
-Copyright © 2025 Florent 'Skia' Jacquet <hyask@ubuntu.com>
-*/
-
-package lib
+package hello
 
 import (
-	"context"
-	"log"
 	"time"
 
 	"go.temporal.io/sdk/temporal"
@@ -14,12 +8,6 @@ import (
 )
 
 const UbuntuReleaseTaskQueueName = "UBUNTU_RELEASE_TASK_QUEUE"
-
-func SayHello(ctx context.Context, product string) (string, error) {
-	log.Printf("Hello %s!", product)
-
-	return "Hello Ubuntu sent out successfully", nil
-}
 
 func HelloUbuntu(ctx workflow.Context, product string) (string, error) {
 	// RetryPolicy specifies how to automatically handle retries if an Activity fails.

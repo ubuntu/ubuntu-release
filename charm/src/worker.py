@@ -62,7 +62,7 @@ class Worker:
     def version(self):
         """Return the version of the Ubuntu Release Worker binary."""
         try:
-            version = check_output(["ubuntu-release-worker", "--version"]).strip()
+            version = check_output(["ubuntu-release-worker", "--version"]).strip().split()[2]
             return version.decode()
         except CalledProcessError as e:
             logger.error("Unable to get workload version (%d, %s)", e.returncode, e.stderr)
