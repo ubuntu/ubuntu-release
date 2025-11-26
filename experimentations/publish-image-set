@@ -1,0 +1,57 @@
+#!/usr/bin/python3
+
+
+from pathlib import Path
+import argparse
+import yaml
+
+
+def parse_args():
+    args = argparse.ArgumentParser()
+    args.add_argument(
+        "--milestone",
+        "-m",
+        type=Path,
+        required=True,
+        help="Path to the milestone.yaml file describing the release",
+    )
+
+    return args.parse_args()
+
+
+def parse_milestone(milestone: Path):
+    return yaml.safe_load(milestone.read_text())
+
+
+def render_publishing_script(milestone: dict[str, dict[str, str]]):
+    print("""
+## make backup:
+cd ~/cdimage/; rm -rf www.prev; cp -al www www.prev; cd www
+""")
+
+    for image_name, image_data in milestone.items():
+        print(f"\n# {image_name}")
+        if image_data["serial"]:
+            print(
+                image_data["publishing_command"].replace("SERIAL", image_data["serial"])
+            )
+        else:
+            print("No serial set for publication, skipping")
+
+    print("""
+## fix name in headers:
+find full -path '*/final*HEADER.html' | xargs sed -i 's/Daily Build/Final/'
+
+## check changes against www.prev:
+diff -u <(cd ../www.prev/full && find | sort) <(cd full && find | sort) | less
+""")
+
+
+def main():
+    args = parse_args()
+    milestone = parse_milestone(args.milestone)
+    render_publishing_script(milestone["images"])
+
+
+if __name__ == "__main__":
+    main()
