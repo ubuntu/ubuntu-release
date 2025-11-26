@@ -12,10 +12,10 @@ images:
     serial: "20251124"
     publishing_command: ARCHES='amd64' for-project lubuntu publish-release daily-live SERIAL desktop named
   ubuntu-desktop-amd64:
-    serial: null
+    serial: "20251101"
     publishing_command: ARCHES='amd64' for-project ubuntu publish-release daily-live SERIAL desktop yes
   ubuntu-desktop-arm64:
-    serial: null
+    serial: "20251101"
     publishing_command: ARCHES='arm64' for-project ubuntu publish-release daily-live SERIAL desktop named
   ubuntu-desktop-arm64+raspi:
     serial: "20251119"
