@@ -40,7 +40,7 @@ cd ~/cdimage/; rm -rf www.prev; cp -al www www.prev; cd www
 
     print("""
 ## fix name in headers:
-find full -path '*/final*HEADER.html' | xargs sed -i 's/Daily Build/Final/'
+find full -path '*/final*HEADER.html' | xargs sed -i 's/Daily Build/Snapshot 1/'
 
 ## check changes against www.prev:
 diff -u <(cd ../www.prev/full && find | sort) <(cd full && find | sort) | less
