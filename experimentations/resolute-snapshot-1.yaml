@@ -60,7 +60,7 @@ images:
     serial: "20251125"
     publishing_command: ARCHES='s390x' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named
   ubuntu-studio:
-    serial: "20251124"
+    serial: "20251126"
     publishing_command: ARCHES='amd64' for-project ubuntustudio publish-release daily-live SERIAL desktop named
   ubuntu-unity:
     serial: "20251118"
