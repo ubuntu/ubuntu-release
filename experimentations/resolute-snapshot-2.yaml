@@ -1,79 +1,82 @@
+milestone:
+  name: Snapshot 2
+  slug: snapshot-2
 images:
   edubuntu-amd64:
     serial:
-    publishing_command: ARCHES='amd64' for-project edubuntu publish-release daily-live SERIAL desktop named snapshot-2
+    publishing_command: ARCHES='amd64' for-project edubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
   edubuntu-arm64+raspi:
     serial:
-    publishing_command: ARCHES='arm64+raspi' for-project edubuntu publish-release daily-preinstalled SERIAL preinstalled-desktop named snapshot-2
+    publishing_command: ARCHES='arm64+raspi' for-project edubuntu publish-release daily-preinstalled SERIAL preinstalled-desktop named MILESTONE_SLUG
   kubuntu-amd64:
     serial:
-    publishing_command: ARCHES='amd64' for-project kubuntu publish-release daily-live SERIAL desktop named snapshot-2
+    publishing_command: ARCHES='amd64' for-project kubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
   lubuntu-amd64:
     serial:
-    publishing_command: ARCHES='amd64' for-project lubuntu publish-release daily-live SERIAL desktop named snapshot-2
+    publishing_command: ARCHES='amd64' for-project lubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
   ubuntu-desktop-amd64:
     serial:
-    publishing_command: ARCHES='amd64' for-project ubuntu publish-release daily-live SERIAL desktop named snapshot-2
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
   ubuntu-desktop-arm64:
     serial:
-    publishing_command: ARCHES='arm64' for-project ubuntu publish-release daily-live SERIAL desktop named snapshot-2
+    publishing_command: ARCHES='arm64' for-project ubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
   ubuntu-desktop-arm64+raspi:
     serial:
-    publishing_command: ARCHES='arm64+raspi' for-project ubuntu publish-release daily-preinstalled SERIAL preinstalled-desktop named snapshot-2
+    publishing_command: ARCHES='arm64+raspi' for-project ubuntu publish-release daily-preinstalled SERIAL preinstalled-desktop named MILESTONE_SLUG
   # As soon as the serial is the same for all architectures/subproducts, we can
   # take the shortcut of grouping them together in the same 'publishing_command'
   # to shorten a bit the YAML.
   ubuntu-base:
     serial:
-    publishing_command: ARCHES='amd64 arm64 armhf ppc64el riscv64 s390x' for-project ubuntu-base publish-release daily SERIAL base named snapshot-2
+    publishing_command: ARCHES='amd64 arm64 armhf ppc64el riscv64 s390x' for-project ubuntu-base publish-release daily SERIAL base named MILESTONE_SLUG
   ubuntu-budgie:
     serial:
-    publishing_command: ARCHES='amd64' for-project ubuntu-budgie publish-release daily-live SERIAL desktop named snapshot-2
+    publishing_command: ARCHES='amd64' for-project ubuntu-budgie publish-release daily-live SERIAL desktop named MILESTONE_SLUG
   ubuntu-cinnamon:
     serial:
-    publishing_command: ARCHES='amd64' for-project ubuntucinnamon publish-release daily-live SERIAL desktop named snapshot-2
+    publishing_command: ARCHES='amd64' for-project ubuntucinnamon publish-release daily-live SERIAL desktop named MILESTONE_SLUG
   ubuntu-kylin:
     serial:
-    publishing_command: ARCHES='amd64' for-project ubuntukylin publish-release daily-live SERIAL desktop named snapshot-2
+    publishing_command: ARCHES='amd64' for-project ubuntukylin publish-release daily-live SERIAL desktop named MILESTONE_SLUG
   ubuntu-mate:
     serial:
-    publishing_command: ARCHES='amd64' for-project ubuntu-mate publish-release daily-live SERIAL desktop named snapshot-2
+    publishing_command: ARCHES='amd64' for-project ubuntu-mate publish-release daily-live SERIAL desktop named MILESTONE_SLUG
   ubuntu-server-preinstalled-arm64+raspi:
     serial:
-    publishing_command: ARCHES='arm64+raspi' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named snapshot-2
+    publishing_command: ARCHES='arm64+raspi' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named MILESTONE_SLUG
   ubuntu-server-preinstalled-riscv64:
     serial:
-    publishing_command: ARCHES='riscv64' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named snapshot-2
+    publishing_command: ARCHES='riscv64' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named MILESTONE_SLUG
   ubuntu-server-live-amd64:
     serial:
-    publishing_command: ARCHES='amd64' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named snapshot-2
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
   ubuntu-server-live-arm64:
     serial:
-    publishing_command: ARCHES='arm64 arm64+largemem' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named snapshot-2
+    publishing_command: ARCHES='arm64 arm64+largemem' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
   ubuntu-server-live-ppc64el:
     serial:
-    publishing_command: ARCHES='ppc64el' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named snapshot-2
+    publishing_command: ARCHES='ppc64el' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
   ubuntu-server-live-riscv64:
     serial:
-    publishing_command: ARCHES='riscv64' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named snapshot-2
+    publishing_command: ARCHES='riscv64' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
   ubuntu-server-live-s390x:
     serial:
-    publishing_command: ARCHES='s390x' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named snapshot-2
+    publishing_command: ARCHES='s390x' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
   ubuntu-studio:
     serial:
-    publishing_command: ARCHES='amd64' for-project ubuntustudio publish-release daily-live SERIAL desktop named snapshot-2
+    publishing_command: ARCHES='amd64' for-project ubuntustudio publish-release daily-live SERIAL desktop named MILESTONE_SLUG
   ubuntu-unity:
     serial:
-    publishing_command: ARCHES='amd64' for-project ubuntu-unity publish-release daily-live SERIAL desktop named snapshot-2
+    publishing_command: ARCHES='amd64' for-project ubuntu-unity publish-release daily-live SERIAL desktop named MILESTONE_SLUG
   ubuntu-wsl-amd64:
     serial:
-    publishing_command: ARCHES='amd64' for-project ubuntu publish-release ubuntu-wsl/daily-live SERIAL wsl named snapshot-2
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release ubuntu-wsl/daily-live SERIAL wsl named MILESTONE_SLUG
   ubuntu-wsl-arm64:
     serial:
-    publishing_command: ARCHES='arm64' for-project ubuntu publish-release ubuntu-wsl/daily-live SERIAL wsl named snapshot-2
+    publishing_command: ARCHES='arm64' for-project ubuntu publish-release ubuntu-wsl/daily-live SERIAL wsl named MILESTONE_SLUG
   xubuntu:
     serial:
-    publishing_command: ARCHES='amd64' for-project xubuntu publish-release daily-live SERIAL desktop named snapshot-2
+    publishing_command: ARCHES='amd64' for-project xubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
   xubuntu-minimal:
     serial:
-    publishing_command: ARCHES='amd64' for-project xubuntu publish-release daily-minimal SERIAL minimal named snapshot-2
+    publishing_command: ARCHES='amd64' for-project xubuntu publish-release daily-minimal SERIAL minimal named MILESTONE_SLUG
