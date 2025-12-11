@@ -18,7 +18,7 @@ images:
     serial: "20251209"
     publishing_command: ARCHES='amd64' for-project ubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
   ubuntu-desktop-arm64:
-    serial: "20251209"
+    serial: "20251208"
     publishing_command: ARCHES='arm64' for-project ubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
   ubuntu-desktop-arm64+raspi:
     serial:
