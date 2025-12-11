@@ -41,7 +41,7 @@ cd ~/cdimage/; rm -rf www.prev; cp -al www www.prev; cd www
                 .replace("MILESTONE_SLUG", milestone["slug"])
             )
         else:
-            print("No serial set for publication, skipping")
+            print("# No serial set for publication, skipping")
 
     print(f"""
 ## fix name in headers:
