@@ -10,12 +10,9 @@
 # * Please write a Python script that browse this server and gets the latest serial for each product/type combination
 # END PROMPT
 #
-# This version 2 with updated prompt is slightly better than previous one, but still has some weirdnesses:
-#   * `import sys`, but not using it? That module must be way too common in the training data it's now mandatory to write Python 😂
-#   * Line 77: why did it think that `dists` and `pool` where existing folders? Good idea to skip known bad directories though.
-#   * Lines 80, 87: we still have bad URL concatenation
-#   * Line 95: `parsed` variable: what's that naming?
-# At least now the output is looking more like what I need, so let's start with that and humanly iterate.
+# See git history to read the problems this script had.
+# The most pressing issues have been fixed and the script can be used to populate the YAML.
+# This script doesn't do anything else than printing information, so it's fairly safe to use.
 
 import requests
 from bs4 import BeautifulSoup
@@ -73,15 +70,15 @@ def parse_serial(serial_str):
 
 def main():
     print(f"Browsing {BASE_URL} for latest serials...\n")
-    print(f"{'Product':<25} | {'Type':<20} | {'Latest Serial'}")
-    print("-" * 65)
+    print(f"{'Product':<25} | {'Type':<20} | {'Latest Serial':<12} | {'URL'}")
+    print("-" * 100)
 
     # Step 1: Browse root to find all products
     products = get_links(BASE_URL + "/")
 
     for product in products:
         # Skip common non-product directories to save time/errors
-        if product in ["releases", "dists", "pool"]:
+        if product in ["releases", "experimental", "noble", "streams"]:
             continue
 
         product_url = f"{BASE_URL}/{product}/"
@@ -94,21 +91,33 @@ def main():
                 type_url = f"{product_url}{type_name}/"
 
                 # Step 3: Browse the type directory to find serials
-                subdirs = get_links(type_url)
+                build_dirs = get_links(type_url)
 
                 valid_serials = []
-                for subdir in subdirs:
+                for build_dir in build_dirs:
                     # 'current' and 'pending' are often symlinks, but we want the actual serial date
-                    parsed = parse_serial(subdir)
-                    if parsed:
-                        valid_serials.append({"original": subdir, "parsed": parsed})
+                    serial = parse_serial(build_dir)
+                    if serial:
+                        valid_serials.append(
+                            {
+                                "original": build_dir,
+                                "serial": serial,
+                                "url": f"{type_url}{build_dir}",
+                            }
+                        )
 
                 if valid_serials:
-                    # Sort by the parsed tuple (Date, Version) in descending order
-                    valid_serials.sort(key=lambda x: x["parsed"], reverse=True)
-                    latest_serial = valid_serials[0]["original"]
+                    # Sort by the serial tuple (Date, Version) in descending order
+                    valid_serials.sort(key=lambda x: x["serial"], reverse=True)
+                    latest_build = valid_serials[0]
 
-                    print(f"{product:<25} | {type_name:<20} | {latest_serial}")
+                    print(
+                        f"{product:<25} | {type_name:<20} | {latest_build['original']:<13} | {latest_build['url']}"
+                    )
+    print("-" * 100)
+    print(
+        "Please go check each link and verify all images while populating the milestone YAML file with the candidate serials"
+    )
 
 
 if __name__ == "__main__":
