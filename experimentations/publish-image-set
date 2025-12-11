@@ -45,7 +45,7 @@ cd ~/cdimage/; rm -rf www.prev; cp -al www www.prev; cd www
 
     print(f"""
 ## fix name in headers:
-find full -path '*/final*HEADER.html' | xargs sed -i 's/Daily Build/{milestone["name"]}/'
+find full -path '*/{milestone["slug"]}*HEADER.html' | xargs sed -i 's/Daily Build/{milestone["name"]}/'
 
 ## check changes against www.prev:
 diff -u <(cd ../www.prev/full && find | sort) <(cd full && find | sort) | less
