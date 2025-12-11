@@ -9,11 +9,11 @@ import yaml
 def parse_args():
     args = argparse.ArgumentParser()
     args.add_argument(
-        "--milestone",
-        "-m",
+        "--data",
+        "-d",
         type=Path,
         required=True,
-        help="Path to the milestone.yaml file describing the release",
+        help="Path to the data.yaml file describing the release",
     )
 
     return args.parse_args()
@@ -23,24 +23,29 @@ def parse_milestone(milestone: Path):
     return yaml.safe_load(milestone.read_text())
 
 
-def render_publishing_script(milestone: dict[str, dict[str, str]]):
+def render_publishing_script(
+    milestone: dict[str, str],
+    images: dict[str, dict[str, str]],
+):
     print("""
 ## make backup:
 cd ~/cdimage/; rm -rf www.prev; cp -al www www.prev; cd www
 """)
 
-    for image_name, image_data in milestone.items():
+    for image_name, image_data in images.items():
         print(f"\n# {image_name}")
         if image_data["serial"]:
             print(
-                image_data["publishing_command"].replace("SERIAL", image_data["serial"])
+                image_data["publishing_command"]
+                .replace("SERIAL", image_data["serial"])
+                .replace("MILESTONE_SLUG", milestone["slug"])
             )
         else:
-            print("No serial set for publication, skipping")
+            print("# No serial set for publication, skipping")
 
-    print("""
+    print(f"""
 ## fix name in headers:
-find full -path '*/final*HEADER.html' | xargs sed -i 's/Daily Build/Snapshot 1/'
+find full -path '*/final*HEADER.html' | xargs sed -i 's/Daily Build/{milestone["name"]}/'
 
 ## check changes against www.prev:
 diff -u <(cd ../www.prev/full && find | sort) <(cd full && find | sort) | less
@@ -49,8 +54,8 @@ diff -u <(cd ../www.prev/full && find | sort) <(cd full && find | sort) | less
 
 def main():
     args = parse_args()
-    milestone = parse_milestone(args.milestone)
-    render_publishing_script(milestone["images"])
+    input_data = parse_milestone(args.data)
+    render_publishing_script(input_data["milestone"], input_data["images"])
 
 
 if __name__ == "__main__":
