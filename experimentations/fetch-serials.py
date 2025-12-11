@@ -7,120 +7,101 @@
 #   /<product>/<type/<serial>
 # * `<type>` can be any value in the following: daily, daily-live, daily-preinstalled, daily-minimal
 # * `<serial>` is usually a date in the form 20251201, but sometimes is 20251201.1
-# * Please write a Python script that browse this server and gets the latest serial for each product, along with its type
+# * Please write a Python script that browse this server and gets the latest serial for each product/type combination 
 # END PROMPT
 #
-# We can see that its not too bad, but also has some weirdnesses:
-#   * line 63, variable `ver_part` could have been named `version_part`. Why such a shortcut?
-#   * lines 87 and 93, the `found_any_type` variable is set but never used. WTF?
-#   * lines 85 and 107, what's that mess with the `best_type` variable? It's never compared, how is it the best? Just use `type_name`!
-#   * In overall, URL concatenation with `+` is very bad practice. It happens to work by accident because it's carrying
-#     both `product_dir` and `product_name`, but it's definitely not pretty.
-#   * Don't get me started on error handling, and returning -1 instead of raising exceptions.
+# This version 2 with updated prompt is slightly better than previous one, but still has some weirdnesses:
+#   * `import sys`, but not using it? That module must be way too common in the training data it's now mandatory to write Python 😂
+#   * Line 77: why did it think that `dists` and `pool` where existing folders? Good idea to skip known bad directories though.
+#   * Lines 80, 87: we still have bad URL concatenation
+#   * Line 95: `parsed` variable: what's that naming?
+# At least now the output is looking more like what I need, so let's start with that and humanly iterate.
 
 import requests
 from bs4 import BeautifulSoup
 import re
+import sys
 
 # Configuration
-BASE_URL = "https://cdimage.ubuntu.com/"
-TYPES = ['daily', 'daily-live', 'daily-preinstalled', 'daily-minimal']
+BASE_URL = "https://cdimage.ubuntu.com"
+ALLOWED_TYPES = {'daily', 'daily-live', 'daily-preinstalled', 'daily-minimal'}
 
-def get_soup(url):
-    """Fetches the URL and returns a BeautifulSoup object."""
+def get_links(url):
+    """
+    Fetches the HTML content of a directory listing and returns a list of 
+    subdirectory names (ending with '/').
+    """
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
-        return BeautifulSoup(response.text, 'html.parser')
-    except requests.RequestException:
-        return None
-
-def get_directories(url):
-    """Returns a list of subdirectories (names ending with /) from a given URL."""
-    soup = get_soup(url)
-    if not soup:
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        links = []
+        for link in soup.find_all('a'):
+            href = link.get('href')
+            # Apache directory listings provide relative links.
+            # We look for directories (ending in /) and ignore parent links.
+            if href and href.endswith('/') and not href.startswith('?') and href not in ['/', '../']:
+                links.append(href.rstrip('/'))
+        return links
+    except requests.exceptions.RequestException as e:
+        # Silently fail for 404s or permission errors on specific folders
+        # print(f"Skipping {url}: {e}", file=sys.stderr)
         return []
-    
-    dirs = []
-    for link in soup.find_all('a'):
-        href = link.get('href')
-        # Filter for directories, ignoring parent directory links and sorting params
-        if href and href.endswith('/') and not href.startswith('/') and not href.startswith('?') and href != '../':
-            dirs.append(href)
-    return dirs
 
 def parse_serial(serial_str):
     """
-    Parses a serial string (e.g., '20251201/' or '20251201.1/') into a comparable tuple.
-    Returns (date_int, version_int). Version defaults to -1 if not present,
-    assuming '20251201' is older than '20251201.1' if strict ordering is needed,
-    but typically versionless comes before versioned.
+    Parses a serial string into a tuple (date, version) for accurate sorting.
+    Example: '20251201'   -> (20251201, 0)
+    Example: '20251201.1' -> (20251201, 1)
     """
-    clean_str = serial_str.rstrip('/')
-    match = re.match(r'^(\d{8})(?:\.(\d+))?$', clean_str)
+    # Regex to match YYYYMMDD and optional .Version
+    match = re.match(r'^(\d{8})(?:\.(\d+))?$', serial_str)
     if match:
         date_part = int(match.group(1))
-        ver_part = int(match.group(2)) if match.group(2) else 0
-        return (date_part, ver_part)
+        # If no suffix version is present, assume 0
+        version_part = int(match.group(2)) if match.group(2) else 0
+        return (date_part, version_part)
     return None
 
 def main():
-    print(f"Browsing {BASE_URL}...")
+    print(f"Browsing {BASE_URL} for latest serials...\n")
+    print(f"{'Product':<25} | {'Type':<20} | {'Latest Serial'}")
+    print("-" * 65)
+
+    # Step 1: Browse root to find all products
+    products = get_links(BASE_URL + "/")
     
-    # 1. Get list of potential products from the root
-    product_candidates = get_directories(BASE_URL)
-    
-    results = []
+    for product in products:
+        # Skip common non-product directories to save time/errors
+        if product in ['releases', 'dists', 'pool']:
+            continue
 
-    for product_dir in product_candidates:
-        product_name = product_dir.rstrip('/')
-        product_url = BASE_URL + product_dir
+        product_url = f"{BASE_URL}/{product}/"
         
-        # 2. Check which types exist for this product
-        # Optimization: Fetch product page once and check for type directories
-        available_types = get_directories(product_url)
+        # Step 2: Browse the product directory to find types
+        types = get_links(product_url)
         
-        latest_serial_tuple = (-1, -1)
-        best_serial_str = None
-        best_type = None
-
-        found_any_type = False
-
-        for type_dir in available_types:
-            type_name = type_dir.rstrip('/')
-            
-            if type_name in TYPES:
-                found_any_type = True
-                type_url = product_url + type_dir
+        for type_name in types:
+            if type_name in ALLOWED_TYPES:
+                type_url = f"{product_url}{type_name}/"
                 
-                # 3. Get list of serials for this type
-                serial_dirs = get_directories(type_url)
+                # Step 3: Browse the type directory to find serials
+                subdirs = get_links(type_url)
                 
-                for serial_dir in serial_dirs:
-                    # Check if it looks like a date/serial
-                    comp_val = parse_serial(serial_dir)
-                    if comp_val:
-                        # Compare to find the absolute latest for this product
-                        if comp_val > latest_serial_tuple:
-                            latest_serial_tuple = comp_val
-                            best_serial_str = serial_dir.rstrip('/')
-                            best_type = type_name
-        
-        if best_serial_str:
-            results.append({
-                'product': product_name,
-                'type': best_type,
-                'serial': best_serial_str
-            })
-
-    # Sort results by product name for clean output
-    results.sort(key=lambda x: x['product'])
-
-    # Print Report
-    print(f"{'PRODUCT':<30} | {'TYPE':<20} | {'LATEST SERIAL'}")
-    print("-" * 70)
-    for res in results:
-        print(f"{res['product']:<30} | {res['type']:<20} | {res['serial']}")
+                valid_serials = []
+                for subdir in subdirs:
+                    # 'current' and 'pending' are often symlinks, but we want the actual serial date
+                    parsed = parse_serial(subdir)
+                    if parsed:
+                        valid_serials.append({'original': subdir, 'parsed': parsed})
+                
+                if valid_serials:
+                    # Sort by the parsed tuple (Date, Version) in descending order
+                    valid_serials.sort(key=lambda x: x['parsed'], reverse=True)
+                    latest_serial = valid_serials[0]['original']
+                    
+                    print(f"{product:<25} | {type_name:<20} | {latest_serial}")
 
 if __name__ == "__main__":
     main()
