@@ -1,61 +1,186 @@
 #!/usr/bin/python3
 
-
-from pathlib import Path
 import argparse
-import yaml
+import requests
 
 
-def parse_args():
-    args = argparse.ArgumentParser()
-    args.add_argument(
-        "--data",
-        "-d",
-        type=Path,
-        required=True,
-        help="Path to the data.yaml file describing the release",
-    )
-
-    return args.parse_args()
+def slugify(string):
+    return string.lower().replace(" ", "-")
 
 
-def parse_milestone(milestone: Path):
-    return yaml.safe_load(milestone.read_text())
+def str_image(image):
+    return f"{image['os']: <25} {image['arch']: <14} {image['name']: <50} {image['version']: <12}"
 
 
-def render_publishing_script(
-    milestone: dict[str, str],
-    images: dict[str, dict[str, str]],
-):
+def is_official(os):
+    if os in ["ubuntu-desktop", "ubuntu-server", "ubuntu-wsl"]:
+        return True
+    return False
+
+
+def get_artifacts(series, pre_publish):
+    """
+    Yields all 'Approved' artifacts for a given release using the
+    Ubuntu Test Observer API.
+
+    :param release_name: The Ubuntu release codename (e.g., 'noble', 'jammy')
+    """
+    base_url = "https://tests-api.ubuntu.com"
+    params = {
+        "family": "image",
+    }
+
+    response = requests.get(base_url + "/v1/artefacts", params=params)
+    response.raise_for_status()
+
+    artifacts = [a for a in response.json() if a["release"] == series]
+    if pre_publish:
+        artifacts = [a for a in artifacts if is_official(a["os"])]
+    print(f"Found {len(artifacts)} artifacts")
+    artifacts = [a for a in artifacts if a["status"] == "APPROVED"]
+    print(f"Found {len(artifacts)} approved artifacts")
+    for artifact in artifacts:
+        response = requests.get(base_url + f"/v1/artefacts/{artifact['id']}/builds")
+        response.raise_for_status()
+        build = response.json()[0]
+        image = {
+            "name": artifact["name"],
+            "os": artifact["os"],
+            "version": artifact["version"],
+            "arch": build["architecture"].split(".")[0],  # fixup old cdimage bug
+        }
+        yield image
+
+
+def get_type(image):
+    os = image["os"]
+    dir = image["dir"]
+
+    if os == "ubuntu-base":
+        return "base"
+    if os == "ubuntu-mini-iso":
+        return "mini-iso"
+    if os == "ubuntu-wsl":
+        return "wsl"
+    if os == "ubuntu-server":
+        if "daily-preinstalled" in dir:
+            return "preinstalled-server"
+        if "daily-live" in dir:
+            return "live-server"
+    if os in ["ubuntu-desktop", "edubuntu"]:
+        if dir == "daily-preinstalled":
+            return "preinstalled-desktop"
+    if os == "xubuntu":
+        if dir == "daily-minimal":
+            return "minimal"
+
+    return "desktop"
+
+
+def get_dir(image):
+    os = image["os"]
+    name = image["name"]
+
+    dir = "daily-live"
+    if os == "ubuntu-base":
+        dir = "daily"
+    if name.startswith("dangerous"):
+        dir = "daily-dangerous"
+    if "minimal" in name:
+        dir = "daily-minimal"
+    if "preinstalled" in name:
+        dir = "daily-preinstalled"
+    if os in ["ubuntu-server", "ubuntu-wsl"]:
+        dir = f"{os}/{dir}"
+    return dir
+
+
+def get_project(image):
+    os = image["os"]
+    if os in ["ubuntu-desktop", "ubuntu-server", "ubuntu-wsl"]:
+        return "ubuntu"
+    return os
+
+
+def get_official(image, milestone, pre_publish):
+    os = image["os"]
+
+    if "snapshot" in milestone.lower():
+        return "named"
+    if is_official(os):
+        if pre_publish:
+            return "poolonly"
+        else:
+            return "yes"
+    return "no"
+
+
+def render_publishing_script(milestone, images):
+    milestone_slug = slugify(milestone)
+
     print("""
 ## make backup:
 cd ~/cdimage/; rm -rf www.prev; cp -al www www.prev; cd www
 """)
 
-    for image_name, image_data in images.items():
-        print(f"\n# {image_name}")
-        if image_data["serial"]:
-            print(
-                image_data["publishing_command"]
-                .replace("SERIAL", image_data["serial"])
-                .replace("MILESTONE_SLUG", milestone["slug"])
-            )
-        else:
-            print("# No serial set for publication, skipping")
+    for image in images:
+        print(f"\n# {str_image(image)}")
+        print(
+            f"ARCHES='{image['arch']}' for-project {image['project']} "
+            f"publish-release {image['dir']} {image['version']} {image['type']} {image['official']} {milestone_slug}"
+        )
 
     print(f"""
 ## fix name in headers:
-find full -path '*/{milestone["slug"]}*HEADER.html' | xargs sed -i 's/Daily Build/{milestone["name"]}/'
+find full -path '*/{milestone_slug}*HEADER.html' | xargs sed -i 's/Daily Build/{milestone}/'
 
 ## check changes against www.prev:
 diff -u <(cd ../www.prev/full && find | sort) <(cd full && find | sort) | less
 """)
 
 
+def parse_args():
+    args = argparse.ArgumentParser()
+    args.add_argument(
+        "--series",
+        "-s",
+        type=str,
+        required=True,
+        help="The series to release (e.g. 'noble', 'resolute'...)",
+    )
+    args.add_argument(
+        "--milestone",
+        "-m",
+        type=str,
+        required=True,
+        help="The milestone to release (e.g. 'Final', 'Snapshot 1'...)",
+    )
+    args.add_argument(
+        "--pre-publish",
+        action="store_true",
+        help="Whether to pre-publish or do a full release",
+    )
+
+    return args.parse_args()
+
+
 def main():
     args = parse_args()
-    input_data = parse_milestone(args.data)
-    render_publishing_script(input_data["milestone"], input_data["images"])
+    print(f"Fetching approved artifacts for {args.series}...")
+
+    images = list(get_artifacts(args.series, args.pre_publish))
+    images.sort(key=lambda a: a["os"])
+    print(" Summary of images to be released ".center(120, "="))
+    for image in images:
+        image["dir"] = get_dir(image)
+        image["type"] = get_type(image)
+        image["project"] = get_project(image)
+        image["official"] = get_official(image, args.milestone, args.pre_publish)
+        print(str_image(image))
+    print("=" * 120)
+    print(" Publishing script ".center(120, "="))
+    render_publishing_script(args.milestone, images)
+    print(" End of script ".center(120, "="))
 
 
 if __name__ == "__main__":
