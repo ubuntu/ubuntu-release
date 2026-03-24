@@ -1,0 +1,454 @@
+openapi: 3.1.0
+info:
+  title: Release Management API
+  version: 0.1.0~dev
+  description: API for querying release statuses and managing release workflows.
+servers:
+  - url: http://localhost:8080/api/v1
+paths:
+  /releases:
+    get:
+      tags:
+        - releases
+      summary: List release statuses
+      parameters:
+        - name: start-range
+          in: query
+          schema:
+            type: string
+          example: "20260101"
+        - name: end-range
+          in: query
+          schema:
+            type: string
+          example: "20260331"
+      responses:
+        "200":
+          description: >
+            A list of release info objects. If no range was given, the statuses
+            of the last five builds will be returned.
+          content:
+            application/json:
+              schema:
+                type: array
+                description: >
+                  The list of release info objects in chronological order.
+                items:
+                  $ref: "#/components/schemas/ReleaseInfo"
+  /releases/create:
+    post:
+      tags:
+        - releases
+      summary: Create a new release
+      description: A release consists of a build and test pipeline.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                series:
+                  type: string
+                  examples: [noble, questing, resolute]
+                channel:
+                  type: string
+                  description: Release channel to create this release for
+                imageIds:
+                  type: array
+                  description: The images to initiate release pipelines for
+                  example:
+                    - "ubuntu|desktop|preinstalled|amd64|generic"
+                    - "ubuntu|*|preinstalled|*|raspi+largemem"
+                    - "*|desktop|live|*|*"
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Returns the new ReleaseIds
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+                description: Map of imageId to ReleaseId
+  #/releases/schedule:
+  #  post:
+  #    tags:
+  #      - releases
+  #    summary: Schedule recurring releases
+  #    description: TODO
+  /releases/{releaseId}/respin:
+    post:
+      tags:
+        - releases
+      summary: Respin release tasks
+      description: >
+        Respin failed tasks (and subsequent tasks) or force respin of successful
+        tasks. A task can be any task, a build task, a test task, etc.
+      parameters:
+        - name: releaseId
+          description: ReleaseId to rerun all failed tasks (and subsequent tasks)
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "20260324.0"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                taskIds:
+                  type: array
+                  description: Restrict rerun to only specific failed tasks
+                  items:
+                    type: string
+                force:
+                  type: boolean
+                  default: false
+                  description: Force rerun of tasks, also successful ones
+      responses:
+        "200":
+          description: >
+            The new ReleaseId, based on previous ReleaseId, with requested tasks
+            (and sub-tasks) being scheduled for rerun
+          content:
+            application/json:
+              schema:
+                type: string
+                description: The ReleaseId
+  /releases/promote:
+    post:
+      tags:
+        - releases
+      summary: Promote release to channel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - channel
+                - releaseIds
+              properties:
+                channel:
+                  type: string
+                  description: Release channel to promote this release to
+                releaseIds:
+                  type: array
+                  description: Release Ids to promote
+                  example: ["20260324.0", "20260331.1"]
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: >
+            The new Release Ids, based on previous ReleaseId, with additional
+            tasks (and sub-tasks) being run due to the promotion in the same
+            order as in the request
+          content:
+            application/json:
+              schema:
+                type: array
+                description: New promoted Release Ids
+                items:
+                  type: string
+  /releases/{releaseId}/remove:
+    post:
+      tags:
+        - releases
+      summary: Remove release
+      parameters:
+        - name: releaseId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "20260324.0"
+      responses:
+        "200":
+          description: The release was successfully removed
+  /releases/builds:
+    get:
+      tags:
+        - builds
+      summary: Get build task infos
+      parameters:
+        - name: releaseIds
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+          example: ["20260101.0", "20260331.1"]
+      responses:
+        "200":
+          description: Map of release IDs to build infos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuildInfo"
+  /releases/tests:
+    get:
+      tags:
+        - tests
+      summary: Get test task results and summary
+      parameters:
+        - name: releaseIds
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+          example: ["20260101.0", "20260331.1"]
+      responses:
+        "200":
+          description: Map of release IDs to test infos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestInfo"
+  /publish/tags:
+    get:
+      tags:
+        - publish
+      summary: List tags' publish infos
+      parameters:
+        - name: regex
+          description: Regular expression acting as include filter.
+          in: query
+          example: "26\\.*"
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Each tag's publish info objects by image.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Map of tag name to publish infos
+                additionalProperties:
+                  $ref: "#/components/schemas/PublishInfo"
+  /publish/create:
+    post:
+      tags:
+        - publish
+      summary: Create new tag
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tag
+                - series
+                - channel
+              properties:
+                tag:
+                  type: string
+                  description: Unique name tag of this published release
+                  example: "26.04-beta"
+                series:
+                  type: string
+                  description: Series to create this release for
+                  example: "resolute"
+                channel:
+                  type: string
+                  description: Release channel to create this release for
+                  example: "Beta"
+                releaseIds:
+                  type: array
+                  description: >
+                    List of ReleaseIds to take image artifacts from for
+                    publishing.  All images must be built for the specified
+                    series and channel.
+                  items:
+                    type: string
+                  example: ["20260331.1", "20260331.0"]
+      responses:
+        "200":
+          description: Tag (publish object) sucessfully created
+  /publish/update:
+    post:
+      tags:
+        - publish
+      summary: Update existing tag
+      description: >
+        Add new images for publishing to existing tag or overwrite previously
+        published images.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tag:
+                  type: string
+                  description: Unique name tag of a previously published release
+                  example: "26.04-beta"
+                releaseIds:
+                  type: array
+                  description: >
+                    List of ReleaseIds to take image artifacts from for
+                    publishing.  This map will extend the mapping of the
+                    previously published release. Conflicting map key will
+                    overwrite existing keys and trigger the rerun of the
+                    corresponding publishing tasks.
+                  items:
+                    type: string
+                  example: ["20260331.1", "20260331.0"]
+      responses:
+        "200":
+          description: Tag (publish object) sucessfully updated
+  /artifact/{id}:
+    get:
+      tags:
+        - artifacts
+      summary: Download artifact BLOB
+      parameters:
+        - name: id
+          description: The artifact ID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "307":
+          description: Redirect to the artifact file
+          headers:
+            location:
+              description: Location in artifact storage
+              schema:
+                type: string
+
+components:
+  schemas:
+    TaskResult:
+      type: object
+      properties:
+        taskId:
+          type: string
+          description: Unique task ID
+          example: e2088b3d-e64e-4e69-8586-b0f546e23560
+        stdout:
+          type: string
+          description: Artifact ID of the recorded stdout
+          example: 8f6a8e63
+        stderr:
+          type: string
+          description: Artifact ID of the recorded stderr
+          example: 1cb3d441
+        exitcode:
+          type: integer
+          description: Exit code
+          examples: [0, 1, -1]
+        outputs:
+          type: object
+          description: Map of output artifact name to artifact ID
+          example:
+            run.log: aa9aa335
+            output_file: 2aa05901
+          additionalProperties:
+            type: string
+    ReleaseInfo:
+      type: object
+      description: Information about a given ReleaseId
+      properties:
+        releaseId:
+          type: string
+          description: time-based unique ID
+          example: "20260324.0"
+        buildStatus:
+          type: string
+          enum:
+            - COMPLETED
+            - RUNNING
+            - CANCELLED
+        testStatus:
+          type: string
+          enum:
+            - PASSED
+            - FAILED
+            - RUNNING
+            - WAITING
+        commitId:
+          type: string
+          description: >
+            Git commit ID of the 'release definitions' repository at the time
+            the ReleaseId was created.
+          example: 8b3f7c089e3674c3e40e90cf7f7d535bce4c8d04
+        series:
+          type: string
+          description: Series this release was created for
+        channel:
+          type: string
+          description: Release channel of this ReleaseId.
+          examples:
+            - Daily
+            - Snapshot
+            - Beta
+            - Milestone
+        images:
+          type: array
+          description: List of images produced for this ReleaseId.
+          example:
+            - "ubuntu|desktop|live|amd64|generic"
+            - "ubuntu|server|preinstalled|arm64|raspi+largemem"
+            - "xubuntu|desktop|live|amd64|generic"
+          items:
+            type: string
+    BuildInfo:
+      type: object
+      properties:
+        image:
+          type: string
+          example: "ubuntu|desktop|live|amd64|generic"
+          description: Image name
+        artifact:
+          type: string
+          example: 3793bfc7
+          description: Image artifact ID.
+        build:
+          $ref: "#/components/schemas/TaskResult"
+    TestInfo:
+      type: object
+      properties:
+        result:
+          type: string
+          enum:
+            - PASS
+            - FAIL
+            - UNKNOWN
+        summary:
+          description: Artifact ID of test report summary.
+          example: 7a346725
+          type: string
+        tests:
+          type: object
+          description: Map test names to test task infos.
+          additionalProperties:
+            $ref: "#/components/schemas/TaskResult"
+    PublishInfo:
+      type: object
+      description: Map of image IDs to publish result and publish task info.
+      additionalProperties:
+        type: object
+        properties:
+          result:
+            type: string
+            enum:
+              - PENDING
+              - SUCCESS
+              - FAILED
+              - UNKNOWN
+          releaseId:
+            type: string
+            example: "20260331.0"
+          task:
+            description: Publishing task info
+            $ref: "#/components/schemas/TaskResult"
