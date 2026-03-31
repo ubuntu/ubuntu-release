@@ -1,8 +1,7 @@
 """Tests for the launchpad module."""
 
+import subprocess
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from lp_queue.launchpad import (
     LaunchpadQueue,
@@ -226,7 +225,7 @@ class TestRunDebdiff:
 
     @patch(
         "lp_queue.launchpad.subprocess.run",
-        side_effect=pytest.importorskip("subprocess").TimeoutExpired(cmd="debdiff", timeout=120),
+        side_effect=subprocess.TimeoutExpired(cmd="debdiff", timeout=120),
     )
     def test_timeout(self, mock_run):
         result = _run_debdiff("/a.dsc", "/b.dsc")
