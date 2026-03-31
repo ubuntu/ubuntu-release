@@ -1,0 +1,7 @@
+launchpadlib
+textual>=3.0.0
+
+[dev]
+pytest
+ruff
+textual-dev
