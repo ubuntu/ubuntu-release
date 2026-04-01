@@ -215,7 +215,7 @@ class QueueApp(App[None]):
 
     def _on_lp_log(self, message: str) -> None:
         """Receive a log message from LaunchpadQueue and write it to the debug panel."""
-        self.app.call_from_thread(self._write_debug_log, message)
+        self.call_from_thread(self._write_debug_log, message)
 
     def _write_debug_log(self, message: str) -> None:
         """Append a message to the debug RichLog widget."""
