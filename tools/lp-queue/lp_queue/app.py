@@ -141,10 +141,28 @@ class QueueApp(App[None]):
 
     .status-bar {
         dock: bottom;
+        width: 100%;
         height: 1;
         background: $accent;
         color: $text;
         padding: 0 1;
+    }
+
+    .status-bar.busy {
+        background: $warning;
+        color: $text;
+        text-style: bold;
+    }
+
+    .status-bar.error {
+        background: $error;
+        color: $text;
+        text-style: bold;
+    }
+
+    .status-bar.success {
+        background: $success;
+        color: $text;
     }
     """
 
@@ -157,7 +175,7 @@ class QueueApp(App[None]):
         """Build the main application layout."""
         yield Header()
         yield DataTable()
-        yield Label("Connecting to Launchpad…", classes="status-bar")
+        yield Label("⏳ Connecting to Launchpad…", classes="status-bar busy")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -169,9 +187,19 @@ class QueueApp(App[None]):
         )
         self._connect_and_load()
 
-    def _set_status(self, message: str) -> None:
-        """Update the status bar message."""
-        self.query_one(".status-bar", Label).update(message)
+    def _set_status(self, message: str, state: str = "") -> None:
+        """Update the status bar message and visual state.
+
+        Args:
+            message: The status text to display.
+            state: Visual state — ``"busy"``, ``"error"``, ``"success"``, or
+                ``""`` for the default/idle look.
+        """
+        bar = self.query_one(".status-bar", Label)
+        bar.remove_class("busy", "error", "success")
+        if state:
+            bar.add_class(state)
+        bar.update(message)
 
     def _get_selected_item(self) -> QueueItem | None:
         """Return the currently selected queue item, or None."""
@@ -187,23 +215,23 @@ class QueueApp(App[None]):
     def _connect_and_load(self) -> None:
         """Connect to Launchpad and load the queue (runs in a worker thread)."""
         try:
-            self.app.call_from_thread(self._set_status, "Connecting to Launchpad…")
+            self.app.call_from_thread(self._set_status, "⏳ Connecting to Launchpad…", "busy")
             self.lp_queue.connect()
-            self.app.call_from_thread(self._set_status, "Loading queue items…")
+            self.app.call_from_thread(self._set_status, "⏳ Loading queue items…", "busy")
             self.queue_items = self.lp_queue.get_queue_items()
             self.app.call_from_thread(self._populate_table)
         except Exception as exc:
-            self.app.call_from_thread(self._set_status, f"Error: {exc}")
+            self.app.call_from_thread(self._set_status, f"❌ Error: {exc}", "error")
 
     @work(thread=True)
     def _load_queue(self) -> None:
         """Refresh queue items from Launchpad (runs in a worker thread)."""
         try:
-            self.app.call_from_thread(self._set_status, "Refreshing queue…")
+            self.app.call_from_thread(self._set_status, "⏳ Refreshing queue…", "busy")
             self.queue_items = self.lp_queue.get_queue_items()
             self.app.call_from_thread(self._populate_table)
         except Exception as exc:
-            self.app.call_from_thread(self._set_status, f"Error: {exc}")
+            self.app.call_from_thread(self._set_status, f"❌ Error: {exc}", "error")
 
     def _populate_table(self) -> None:
         """Populate the data table with current queue items."""
@@ -236,13 +264,17 @@ class QueueApp(App[None]):
     @work(thread=True)
     def _fetch_debdiff(self, item: QueueItem) -> None:
         """Fetch the debdiff in a worker thread and push the review screen."""
-        self.app.call_from_thread(self._set_status, f"Loading debdiff for {item.display_name}…")
+        self.app.call_from_thread(
+            self._set_status, f"⏳ Fetching debdiff for {item.display_name}…", "busy"
+        )
         try:
             debdiff = self.lp_queue.get_debdiff(item)
             self.app.call_from_thread(self.push_screen, ReviewScreen(item, debdiff))
-            self.app.call_from_thread(self._set_status, f"Reviewing {item.display_name}")
+            self.app.call_from_thread(
+                self._set_status, f"Reviewing {item.display_name}"
+            )
         except Exception as exc:
-            self.app.call_from_thread(self._set_status, f"Error: {exc}")
+            self.app.call_from_thread(self._set_status, f"❌ Error: {exc}", "error")
 
     def action_accept(self) -> None:
         """Accept the selected queue item."""
@@ -255,14 +287,18 @@ class QueueApp(App[None]):
     @work(thread=True)
     def _do_accept(self, item: QueueItem) -> None:
         """Accept the item in a worker thread."""
-        self.app.call_from_thread(self._set_status, f"Accepting {item.display_name}…")
+        self.app.call_from_thread(
+            self._set_status, f"⏳ Accepting {item.display_name}…", "busy"
+        )
         try:
             self.lp_queue.accept(item)
-            self.app.call_from_thread(self._set_status, f"Accepted {item.display_name}")
+            self.app.call_from_thread(
+                self._set_status, f"✔ Accepted {item.display_name}", "success"
+            )
             self.queue_items = self.lp_queue.get_queue_items()
             self.app.call_from_thread(self._populate_table)
         except Exception as exc:
-            self.app.call_from_thread(self._set_status, f"Error: {exc}")
+            self.app.call_from_thread(self._set_status, f"❌ Error: {exc}", "error")
 
     def action_reject(self) -> None:
         """Reject the selected queue item, asking for a comment."""
@@ -285,14 +321,18 @@ class QueueApp(App[None]):
     @work(thread=True)
     def _do_reject(self, item: QueueItem, comment: str) -> None:
         """Reject the item in a worker thread."""
-        self.app.call_from_thread(self._set_status, f"Rejecting {item.display_name}…")
+        self.app.call_from_thread(
+            self._set_status, f"⏳ Rejecting {item.display_name}…", "busy"
+        )
         try:
             self.lp_queue.reject(item, comment)
-            self.app.call_from_thread(self._set_status, f"Rejected {item.display_name}")
+            self.app.call_from_thread(
+                self._set_status, f"✔ Rejected {item.display_name}", "success"
+            )
             self.queue_items = self.lp_queue.get_queue_items()
             self.app.call_from_thread(self._populate_table)
         except Exception as exc:
-            self.app.call_from_thread(self._set_status, f"Error: {exc}")
+            self.app.call_from_thread(self._set_status, f"❌ Error: {exc}", "error")
 
 
 def main() -> None:
