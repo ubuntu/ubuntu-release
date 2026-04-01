@@ -6,6 +6,7 @@ import logging
 import subprocess
 import tempfile
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -52,6 +53,20 @@ class LaunchpadQueue:
         self._ubuntu = None
         self._archive = None
         self._series = None
+        self._log_callback: Callable[[str], None] | None = None
+
+    def set_log_callback(self, callback: Callable[[str], None]) -> None:
+        """Register a callback to receive debug log messages.
+
+        Args:
+            callback: A callable that accepts a single log-message string.
+        """
+        self._log_callback = callback
+
+    def _log(self, message: str) -> None:
+        """Send *message* to the registered log callback (if any)."""
+        if self._log_callback is not None:
+            self._log_callback(message)
 
     def connect(self) -> None:
         """Authenticate and connect to Launchpad.
@@ -63,16 +78,21 @@ class LaunchpadQueue:
         """
         from launchpadlib.launchpad import Launchpad
 
+        self._log("Launchpad.login_with('lp-queue-tui', 'production', version='devel')")
         self._lp = Launchpad.login_with(
             "lp-queue-tui",
             "production",
             version="devel",
         )
+        self._log("distributions['ubuntu']")
         self._ubuntu = self._lp.distributions["ubuntu"]
+        self._log("ubuntu.main_archive")
         self._archive = self._ubuntu.main_archive
+        self._log(f"ubuntu.getSeries(name_or_version={self.series!r})")
         self._series = self._ubuntu.getSeries(name_or_version=self.series)
 
     def lp_user_name(self) -> str:
+        self._log("lp.me.name")
         return self._lp.me.name
 
     def get_queue_items(self, status: str = QUEUE_STATUS_UNAPPROVED) -> list[QueueItem]:
@@ -85,6 +105,7 @@ class LaunchpadQueue:
             A list of QueueItem dataclass instances.
 
         """
+        self._log(f"series.getPackageUploads(status={status!r})")
         uploads = self._series.getPackageUploads(status=status)
         items: list[QueueItem] = []
         for upload in uploads:
@@ -120,6 +141,7 @@ class LaunchpadQueue:
             The debdiff output as a string, or the changes file content.
 
         """
+        self._log(f"get_debdiff({item.display_name})")
         current = self._get_current_source(item.source_name)
         if current is None:
             return self._get_changes_content(item)
@@ -138,6 +160,7 @@ class LaunchpadQueue:
             item: The queue item to accept.
 
         """
+        self._log(f"item.acceptFromQueue() [{item.display_name}]")
         item.lp_item.acceptFromQueue()
 
     def reject(self, item: QueueItem, comment: str) -> None:
@@ -148,6 +171,7 @@ class LaunchpadQueue:
             comment: The rejection reason/comment.
 
         """
+        self._log(f"item.rejectFromQueue(comment=...) [{item.display_name}]")
         item.lp_item.rejectFromQueue(comment=comment)
 
     def get_debian_tracker_url(self, source_name: str) -> str:
@@ -164,6 +188,10 @@ class LaunchpadQueue:
 
     def _get_current_source(self, source_name: str) -> object | None:
         """Return the currently published source in the archive, or None."""
+        self._log(
+            f"archive.getPublishedSources(source_name={source_name!r}, "
+            f"exact_match=True, status='Published')"
+        )
         sources = self._archive.getPublishedSources(
             source_name=source_name,
             exact_match=True,

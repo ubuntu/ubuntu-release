@@ -171,6 +171,20 @@ class TestLaunchpadQueue:
         result = lp._get_changes_content(item)
         assert "(no changes file available)" in result
 
+    def test_log_callback(self):
+        """Test that _log invokes the registered callback."""
+        lp = LaunchpadQueue()
+        messages: list[str] = []
+        lp.set_log_callback(messages.append)
+        lp._log("hello")
+        assert messages == ["hello"]
+
+    def test_log_no_callback(self):
+        """Test that _log is a no-op when no callback is registered."""
+        lp = LaunchpadQueue()
+        # Should not raise
+        lp._log("ignored")
+
 
 # ---------------------------------------------------------------------------
 # Helper function tests

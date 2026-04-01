@@ -131,12 +131,34 @@ class QueueApp(App[None]):
         Binding("a", "accept", "Accept"),
         Binding("j", "reject", "Reject"),
         Binding("f5", "refresh", "Refresh"),
+        Binding("tilde", "toggle_debug", "Debug", show=False),
         Binding("q", "quit", "Quit"),
     ]
 
     DEFAULT_CSS = """
     DataTable {
         height: 1fr;
+    }
+
+    #debug-panel {
+        height: 12;
+        border-top: thick $accent;
+        background: $surface;
+        display: none;
+    }
+
+    #debug-panel.visible {
+        display: block;
+    }
+
+    .debug-title {
+        dock: top;
+        text-style: bold;
+        padding: 0 1;
+        background: $accent;
+        color: $text;
+        width: 100%;
+        height: 1;
     }
 
     .status-bar {
@@ -175,6 +197,9 @@ class QueueApp(App[None]):
         """Build the main application layout."""
         yield Header()
         yield DataTable()
+        with Vertical(id="debug-panel"):
+            yield Label("Launchpad Debug Log", classes="debug-title")
+            yield RichLog(id="debug-log", highlight=True, markup=False)
         yield Label("⏳ Connecting to Launchpad…", classes="status-bar busy")
         yield Footer()
 
@@ -185,7 +210,21 @@ class QueueApp(App[None]):
         table.add_columns(
             "Package", "Version", "Component", "Section", "Status", "Sync", "Created"
         )
+        self.lp_queue.set_log_callback(self._on_lp_log)
         self._connect_and_load()
+
+    def _on_lp_log(self, message: str) -> None:
+        """Receive a log message from LaunchpadQueue and write it to the debug panel."""
+        self.app.call_from_thread(self._write_debug_log, message)
+
+    def _write_debug_log(self, message: str) -> None:
+        """Append a message to the debug RichLog widget."""
+        self.query_one("#debug-log", RichLog).write(message)
+
+    def action_toggle_debug(self) -> None:
+        """Toggle visibility of the Launchpad debug log panel."""
+        panel = self.query_one("#debug-panel")
+        panel.toggle_class("visible")
 
     def _set_username(self, username):
         self.username = username

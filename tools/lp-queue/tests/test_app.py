@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from textual.widgets import DataTable
+from textual.widgets import DataTable, RichLog
 
 from lp_queue.app import QueueApp, RejectScreen, ReviewScreen
 from lp_queue.launchpad import LaunchpadQueue, QueueItem
@@ -97,3 +97,58 @@ class TestRejectScreen:
             await _pilot.press("escape")
             await _pilot.pause()
             assert app.screen is not screen
+
+
+class TestDebugPanel:
+    """Tests for the toggleable debug log panel."""
+
+    async def test_debug_panel_hidden_by_default(self):
+        """Test that the debug panel is hidden on startup."""
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            panel = app.query_one("#debug-panel")
+            assert "visible" not in panel.classes
+
+    async def test_toggle_debug_panel(self):
+        """Test that pressing ~ toggles the debug panel visibility."""
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            panel = app.query_one("#debug-panel")
+            assert "visible" not in panel.classes
+
+            # Toggle on
+            await _pilot.press("~")
+            await _pilot.pause()
+            assert "visible" in panel.classes
+
+            # Toggle off
+            await _pilot.press("~")
+            await _pilot.pause()
+            assert "visible" not in panel.classes
+
+    async def test_write_debug_log(self):
+        """Test that _write_debug_log appends to the debug RichLog."""
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            # Make the panel visible so RichLog knows its size and renders immediately
+            app.action_toggle_debug()
+            await _pilot.pause()
+            log = app.query_one("#debug-log", RichLog)
+            initial = len(log.lines)
+            app._write_debug_log("test log message")
+            await _pilot.pause()
+            assert len(log.lines) > initial
+
+    async def test_log_callback_registered(self):
+        """Test that the log callback is set on LaunchpadQueue during mount."""
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            assert lp._log_callback is not None
