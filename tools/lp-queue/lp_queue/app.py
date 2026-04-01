@@ -140,7 +140,6 @@ class QueueApp(App[None]):
     }
 
     .status-bar {
-        dock: bottom;
         width: 100%;
         height: 1;
         background: $accent;
