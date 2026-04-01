@@ -7,7 +7,17 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, DataTable, Footer, Header, Input, Label, RichLog
+from textual.widgets import (
+    Button,
+    DataTable,
+    Footer,
+    Header,
+    Input,
+    Label,
+    OptionList,
+    RichLog,
+)
+from textual.widgets.option_list import Option
 
 from lp_queue.launchpad import LaunchpadQueue, QueueItem
 
@@ -201,6 +211,74 @@ class ConfirmScreen(ModalScreen[bool]):
         self.dismiss(False)
 
 
+class SeriesScreen(ModalScreen[str | None]):
+    """Modal screen to select an Ubuntu series."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+    ]
+
+    DEFAULT_CSS = """
+    SeriesScreen {
+        align: center middle;
+    }
+
+    SeriesScreen > Vertical {
+        width: 50%;
+        height: 70%;
+        border: thick $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+
+    SeriesScreen .series-title {
+        text-style: bold;
+        padding: 1;
+        background: $accent;
+        color: $text;
+        width: 100%;
+    }
+
+    SeriesScreen OptionList {
+        height: 1fr;
+        margin: 1 0;
+    }
+    """
+
+    def __init__(
+        self,
+        series_list: list[tuple[str, str, bool]],
+        current_series: str,
+    ) -> None:
+        super().__init__()
+        self._series_list = series_list
+        self._current_series = current_series
+
+    def compose(self) -> ComposeResult:
+        """Build the series selection screen."""
+        with Vertical():
+            yield Label("Switch Ubuntu Series", classes="series-title")
+            yield OptionList(*self._build_options())
+
+    def _build_options(self) -> list[Option]:
+        """Build OptionList entries from the series data."""
+        options: list[Option] = []
+        for name, version, active in self._series_list:
+            marker = " ✦" if name == self._current_series else ""
+            status = " (active)" if active else ""
+            options.append(Option(f"{name} ({version}){status}{marker}", id=name))
+        return options
+
+    @on(OptionList.OptionSelected)
+    def on_option_selected(self, event: OptionList.OptionSelected) -> None:
+        """Handle series selection."""
+        self.dismiss(event.option.id)
+
+    def action_cancel(self) -> None:
+        """Cancel series selection."""
+        self.dismiss(None)
+
+
 class QueueApp(App[None]):
     """TUI application for managing the Ubuntu upload queue."""
 
@@ -210,6 +288,7 @@ class QueueApp(App[None]):
         Binding("r", "review", "Review"),
         Binding("a", "accept", "Accept"),
         Binding("j", "reject", "Reject"),
+        Binding("f2", "switch_series", "Series"),
         Binding("f5", "refresh", "Refresh"),
         Binding("tilde", "toggle_debug", "Debug", show=False),
         Binding("q", "quit", "Quit"),
@@ -380,6 +459,48 @@ class QueueApp(App[None]):
     def action_refresh(self) -> None:
         """Refresh the queue listing."""
         self._load_queue()
+
+    def action_switch_series(self) -> None:
+        """Open the series selection screen."""
+        self._fetch_series()
+
+    @work(thread=True)
+    def _fetch_series(self) -> None:
+        """Fetch the list of Ubuntu series in a worker thread."""
+        self.app.call_from_thread(self._set_status, "⏳ Loading series list…", "busy")
+        try:
+            series_list = self.lp_queue.get_all_series()
+            self.app.call_from_thread(
+                self.push_screen,
+                SeriesScreen(series_list, self.lp_queue.series),
+                self._handle_series_result,
+            )
+            self.app.call_from_thread(self._set_status, "Select a series")
+        except Exception as exc:
+            self.app.call_from_thread(self._set_status, f"❌ Error: {exc}", "error")
+
+    def _handle_series_result(self, series_name: str | None) -> None:
+        """Process the result from the series selection screen."""
+        if series_name is None:
+            self._set_status("Series switch cancelled")
+            return
+        if series_name == self.lp_queue.series:
+            self._set_status(f"Already on {series_name}")
+            return
+        self._do_switch_series(series_name)
+
+    @work(thread=True)
+    def _do_switch_series(self, series_name: str) -> None:
+        """Switch the active series and reload the queue."""
+        self.app.call_from_thread(
+            self._set_status, f"⏳ Switching to {series_name}…", "busy"
+        )
+        try:
+            self.lp_queue.switch_series(series_name)
+            self.queue_items = self.lp_queue.get_queue_items()
+            self.app.call_from_thread(self._populate_table)
+        except Exception as exc:
+            self.app.call_from_thread(self._set_status, f"❌ Error: {exc}", "error")
 
     def action_review(self) -> None:
         """Review the selected queue item by showing its debdiff."""

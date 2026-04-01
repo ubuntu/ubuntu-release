@@ -174,6 +174,36 @@ class LaunchpadQueue:
         self._log(f"item.rejectFromQueue(comment=...) [{item.display_name}]")
         item.lp_item.rejectFromQueue(comment=comment)
 
+    def get_all_series(self) -> list[tuple[str, str, bool]]:
+        """Return all Ubuntu series as ``(name, version, active)`` tuples.
+
+        *active* is ``True`` when the series status is one of
+        ``Active Development``, ``Current Stable Release``, or ``Supported``.
+
+        """
+        self._log("ubuntu.series_collection")
+        active_statuses = {
+            "Active Development",
+            "Current Stable Release",
+            "Supported",
+        }
+        result: list[tuple[str, str, bool]] = []
+        for s in self._ubuntu.series:
+            active = s.status in active_statuses
+            result.append((s.name, s.version, active))
+        return result
+
+    def switch_series(self, series_name: str) -> None:
+        """Change the active series to *series_name*.
+
+        After calling this the next :meth:`get_queue_items` call will
+        operate on the new series.
+
+        """
+        self._log(f"ubuntu.getSeries(name_or_version={series_name!r})")
+        self._series = self._ubuntu.getSeries(name_or_version=series_name)
+        self.series = series_name
+
     def get_debian_tracker_url(self, source_name: str) -> str:
         """Return the Debian tracker URL for a source package.
 

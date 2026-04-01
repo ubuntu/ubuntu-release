@@ -185,6 +185,51 @@ class TestLaunchpadQueue:
         # Should not raise
         lp._log("ignored")
 
+    def test_get_all_series(self):
+        """Test get_all_series returns tuples of (name, version, active)."""
+        lp = LaunchpadQueue()
+
+        mock_series_1 = MagicMock()
+        mock_series_1.name = "resolute"
+        mock_series_1.version = "26.04"
+        mock_series_1.status = "Active Development"
+
+        mock_series_2 = MagicMock()
+        mock_series_2.name = "noble"
+        mock_series_2.version = "24.04"
+        mock_series_2.status = "Supported"
+
+        mock_series_3 = MagicMock()
+        mock_series_3.name = "trusty"
+        mock_series_3.version = "14.04"
+        mock_series_3.status = "Obsolete"
+
+        mock_ubuntu = MagicMock()
+        mock_ubuntu.series = [mock_series_1, mock_series_2, mock_series_3]
+        lp._ubuntu = mock_ubuntu
+
+        result = lp.get_all_series()
+
+        assert len(result) == 3
+        assert result[0] == ("resolute", "26.04", True)
+        assert result[1] == ("noble", "24.04", True)
+        assert result[2] == ("trusty", "14.04", False)
+
+    def test_switch_series(self):
+        """Test switch_series updates the active series."""
+        lp = LaunchpadQueue()
+
+        mock_ubuntu = MagicMock()
+        mock_new_series = MagicMock()
+        mock_ubuntu.getSeries.return_value = mock_new_series
+        lp._ubuntu = mock_ubuntu
+
+        lp.switch_series("noble")
+
+        mock_ubuntu.getSeries.assert_called_once_with(name_or_version="noble")
+        assert lp.series == "noble"
+        assert lp._series is mock_new_series
+
 
 # ---------------------------------------------------------------------------
 # Helper function tests
