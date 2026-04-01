@@ -169,6 +169,7 @@ class QueueApp(App[None]):
         super().__init__()
         self.lp_queue = lp_queue or LaunchpadQueue()
         self.queue_items: list[QueueItem] = []
+        self.username = ""
 
     def compose(self) -> ComposeResult:
         """Build the main application layout."""
@@ -186,6 +187,9 @@ class QueueApp(App[None]):
         )
         self._connect_and_load()
 
+    def _set_username(self, username):
+        self.username = username
+
     def _set_status(self, message: str, state: str = "") -> None:
         """Update the status bar message and visual state.
 
@@ -198,7 +202,10 @@ class QueueApp(App[None]):
         bar.remove_class("busy", "error", "success")
         if state:
             bar.add_class(state)
-        bar.update(message)
+        msg = message
+        if self.username:
+            msg = f"Connected as '{self.username}' - {message}"
+        bar.update(msg)
 
     def _get_selected_item(self) -> QueueItem | None:
         """Return the currently selected queue item, or None."""
@@ -216,6 +223,8 @@ class QueueApp(App[None]):
         try:
             self.app.call_from_thread(self._set_status, "⏳ Connecting to Launchpad…", "busy")
             self.lp_queue.connect()
+            self.app.call_from_thread(self._set_status, "⏳ Getting user name…", "busy")
+            self.app.call_from_thread(self._set_username, self.lp_queue.lp_user_name())
             self.app.call_from_thread(self._set_status, "⏳ Loading queue items…", "busy")
             self.queue_items = self.lp_queue.get_queue_items()
             self.app.call_from_thread(self._populate_table)

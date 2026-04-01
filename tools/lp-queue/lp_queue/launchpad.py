@@ -72,6 +72,9 @@ class LaunchpadQueue:
         self._archive = self._ubuntu.main_archive
         self._series = self._ubuntu.getSeries(name_or_version=self.series)
 
+    def lp_user_name(self) -> str:
+        return self._lp.me.name
+
     def get_queue_items(self, status: str = QUEUE_STATUS_UNAPPROVED) -> list[QueueItem]:
         """Fetch all items in the upload queue for the configured series.
 
