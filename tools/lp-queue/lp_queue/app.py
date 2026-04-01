@@ -7,7 +7,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import DataTable, Footer, Header, Input, Label, RichLog
+from textual.widgets import Button, DataTable, Footer, Header, Input, Label, RichLog
 
 from lp_queue.launchpad import LaunchpadQueue, QueueItem
 
@@ -121,6 +121,86 @@ class RejectScreen(ModalScreen[str | None]):
         self.dismiss(None)
 
 
+class ConfirmScreen(ModalScreen[bool]):
+    """Modal screen asking the user to confirm an action."""
+
+    BINDINGS = [
+        Binding("y", "confirm", "Yes"),
+        Binding("n", "cancel", "No"),
+        Binding("escape", "cancel", "Cancel"),
+    ]
+
+    DEFAULT_CSS = """
+    ConfirmScreen {
+        align: center middle;
+    }
+
+    ConfirmScreen > Vertical {
+        width: 50%;
+        height: auto;
+        max-height: 50%;
+        border: thick $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+
+    ConfirmScreen .confirm-title {
+        text-style: bold;
+        padding: 1;
+        width: 100%;
+    }
+
+    ConfirmScreen .confirm-message {
+        padding: 0 1 1 1;
+    }
+
+    ConfirmScreen .confirm-buttons {
+        height: auto;
+        width: 100%;
+        align: center middle;
+        padding: 1 0 0 0;
+    }
+
+    ConfirmScreen Button {
+        margin: 0 1;
+    }
+    """
+
+    def __init__(self, title: str, message: str) -> None:
+        super().__init__()
+        self._title = title
+        self._message = message
+
+    def compose(self) -> ComposeResult:
+        """Build the confirmation dialog layout."""
+        from textual.containers import Horizontal
+
+        with Vertical():
+            yield Label(self._title, classes="confirm-title")
+            yield Label(self._message, classes="confirm-message")
+            with Horizontal(classes="confirm-buttons"):
+                yield Button("Yes", variant="success", id="confirm-yes")
+                yield Button("No", variant="error", id="confirm-no")
+
+    @on(Button.Pressed, "#confirm-yes")
+    def on_confirm(self) -> None:
+        """Confirm the action."""
+        self.dismiss(True)
+
+    @on(Button.Pressed, "#confirm-no")
+    def on_deny(self) -> None:
+        """Cancel the action."""
+        self.dismiss(False)
+
+    def action_confirm(self) -> None:
+        """Confirm via keyboard shortcut."""
+        self.dismiss(True)
+
+    def action_cancel(self) -> None:
+        """Cancel via keyboard shortcut."""
+        self.dismiss(False)
+
+
 class QueueApp(App[None]):
     """TUI application for managing the Ubuntu upload queue."""
 
@@ -192,6 +272,7 @@ class QueueApp(App[None]):
         self.lp_queue = lp_queue or LaunchpadQueue()
         self.queue_items: list[QueueItem] = []
         self.username = ""
+        self._pending_reject_comment = ""
 
     def compose(self) -> ComposeResult:
         """Build the main application layout."""
@@ -324,10 +405,26 @@ class QueueApp(App[None]):
             self.app.call_from_thread(self._set_status, f"❌ Error: {exc}", "error")
 
     def action_accept(self) -> None:
-        """Accept the selected queue item."""
+        """Accept the selected queue item after confirmation."""
         item = self._get_selected_item()
         if item is None:
             self._set_status("No item selected")
+            return
+        self.push_screen(
+            ConfirmScreen(
+                "Accept Package",
+                f"Are you sure you want to accept {item.display_name}?",
+            ),
+            self._handle_accept_confirm,
+        )
+
+    def _handle_accept_confirm(self, confirmed: bool) -> None:
+        """Process the result from the accept confirmation dialog."""
+        if not confirmed:
+            self._set_status("Accept cancelled")
+            return
+        item = self._get_selected_item()
+        if item is None:
             return
         self._do_accept(item)
 
@@ -363,6 +460,24 @@ class QueueApp(App[None]):
         item = self._get_selected_item()
         if item is None:
             return
+        self._pending_reject_comment = comment
+        self.push_screen(
+            ConfirmScreen(
+                "Reject Package",
+                f"Are you sure you want to reject {item.display_name}?",
+            ),
+            self._handle_reject_confirm,
+        )
+
+    def _handle_reject_confirm(self, confirmed: bool) -> None:
+        """Process the result from the reject confirmation dialog."""
+        if not confirmed:
+            self._set_status("Rejection cancelled")
+            return
+        item = self._get_selected_item()
+        if item is None:
+            return
+        comment = self._pending_reject_comment
         self._do_reject(item, comment)
 
     @work(thread=True)
