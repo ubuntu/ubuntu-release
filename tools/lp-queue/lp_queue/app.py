@@ -248,7 +248,7 @@ class SeriesScreen(ModalScreen[str | None]):
 
     def __init__(
         self,
-        series_list: list[tuple[str, str, bool]],
+        series_list: list[tuple[str, str, str]],
         current_series: str,
     ) -> None:
         super().__init__()
@@ -264,10 +264,9 @@ class SeriesScreen(ModalScreen[str | None]):
     def _build_options(self) -> list[Option]:
         """Build OptionList entries from the series data."""
         options: list[Option] = []
-        for name, version, active in self._series_list:
-            marker = " ✦" if name == self._current_series else ""
-            status = " (active)" if active else ""
-            options.append(Option(f"{name} ({version}){status}{marker}", id=name))
+        for name, version, status in self._series_list:
+            marker = " ✦ " if name == self._current_series else "   "
+            options.append(Option(f"{marker} {name} ({version}) {status}", id=name))
         return options
 
     @on(OptionList.OptionSelected)

@@ -211,9 +211,9 @@ class TestLaunchpadQueue:
         result = lp.get_all_series()
 
         assert len(result) == 3
-        assert result[0] == ("resolute", "26.04", True)
-        assert result[1] == ("noble", "24.04", True)
-        assert result[2] == ("trusty", "14.04", False)
+        assert result[0] == ("resolute", "26.04", "Active Development")
+        assert result[1] == ("noble", "24.04", "Supported")
+        assert result[2] == ("trusty", "14.04", "Obsolete")
 
     def test_switch_series(self):
         """Test switch_series updates the active series."""

@@ -174,23 +174,14 @@ class LaunchpadQueue:
         self._log(f"item.rejectFromQueue(comment=...) [{item.display_name}]")
         item.lp_item.rejectFromQueue(comment=comment)
 
-    def get_all_series(self) -> list[tuple[str, str, bool]]:
-        """Return all Ubuntu series as ``(name, version, active)`` tuples.
-
-        *active* is ``True`` when the series status is one of
-        ``Active Development``, ``Current Stable Release``, or ``Supported``.
-
-        """
+    def get_all_series(self) -> list[tuple[str, str, str]]:
+        """Return all Ubuntu series as ``(name, version, status)`` tuples."""
         self._log("ubuntu.series_collection")
-        active_statuses = {
-            "Active Development",
-            "Current Stable Release",
-            "Supported",
-        }
-        result: list[tuple[str, str, bool]] = []
+        result: list[tuple[str, str, str]] = []
         for s in self._ubuntu.series:
-            active = s.status in active_statuses
-            result.append((s.name, s.version, active))
+            self._log(f"{s.name}: {s.status}")
+            if s.status != "Obsolete":
+                result.append((s.name, s.version, s.status))
         return result
 
     def switch_series(self, series_name: str) -> None:
