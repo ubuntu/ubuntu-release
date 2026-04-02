@@ -53,6 +53,8 @@ class LaunchpadQueue:
         self._series = None
         self._debian_archive = None
         self._log_callback: Callable[[str], None] | None = None
+        self.work_dir = Path().home() / "lp-queue"
+        self.work_dir.mkdir(parents=True, exist_ok=True)
 
     def set_log_callback(self, callback: Callable[[str], None]) -> None:
         """Register a callback to receive debug log messages.
@@ -147,36 +149,39 @@ class LaunchpadQueue:
             f"Found current source package: {current.source_package_name}/{current.source_package_version}"
         )
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            old_dsc = _download_source_files(current.sourceFileUrls(), tmpdir)
+        work_dir = self.work_dir / item.source_name
+        work_dir.mkdir(parents=True, exist_ok=True)
+        work_dir = str(work_dir)
 
-            if not item.is_sync:
-                # Try LP source files first; silently fall back for syncs.
-                try:
-                    self._log(f"Fetching {item.display_name} from Ubuntu archive")
-                    new_dsc = _download_source_files(item.lp_item.sourceFileUrls(), tmpdir)
-                except (OSError, urllib.error.URLError) as e:
-                    self._log("LP source files unavailable for %s (%s)" % (item.display_name, e))
-                    new_dsc = None
+        old_dsc = _download_source_files(current.sourceFileUrls(), work_dir)
 
-            #  For synced packages: fetch from the Debian archive via LP.
-            if item.is_sync:
-                try:
-                    self._log(f"Fetching {item.display_name} from Debian archive")
-                    new_dsc = self._get_debian_source(item.source_name, item.version, tmpdir)
-                except (OSError, urllib.error.URLError) as e:
-                    self._log("LP source files unavailable for %s (%s)" % (item.display_name, e))
-                    new_dsc = None
+        if not item.is_sync:
+            # Try LP source files first; silently fall back for syncs.
+            try:
+                self._log(f"Fetching {item.display_name} from Ubuntu archive")
+                new_dsc = _download_source_files(item.lp_item.sourceFileUrls(), work_dir)
+            except (OSError, urllib.error.URLError) as e:
+                self._log("LP source files unavailable for %s (%s)" % (item.display_name, e))
+                new_dsc = None
 
-            if old_dsc is None or new_dsc is None:
-                return self._get_changes_content(item)
-            return self._run_debdiff(tmpdir, old_dsc, new_dsc)
+        #  For synced packages: fetch from the Debian archive via LP.
+        if item.is_sync:
+            try:
+                self._log(f"Fetching {item.display_name} from Debian archive")
+                new_dsc = self._get_debian_source(item.source_name, item.version, work_dir)
+            except (OSError, urllib.error.URLError) as e:
+                self._log("LP source files unavailable for %s (%s)" % (item.display_name, e))
+                new_dsc = None
 
-    def _run_debdiff(self, tmpdir: str, old_dsc: str, new_dsc: str) -> str:
+        if old_dsc is None or new_dsc is None:
+            return self._get_changes_content(item)
+        return self._run_debdiff(old_dsc, new_dsc)
+
+    def _run_debdiff(self, old_dsc: str, new_dsc: str) -> str:
         """Run some diff between two .dsc files and return the output."""
         # Get a diffoscope HTML output for very rich diffing
         try:
-            output = Path("/tmp") / (
+            output = self.work_dir / (
                 Path(old_dsc).stem + "_" + Path(new_dsc).stem + "_debdiff.html"
             )
             subprocess.run(["diffoscope", "--html", str(output), old_dsc, new_dsc], timeout=120)
@@ -341,7 +346,9 @@ def _download_source_files(urls: list[str], dest: str) -> str | None:
     for url in urls:
         filename = url.rsplit("/", 1)[-1]
         filepath = Path(dest) / filename
-        urllib.request.urlretrieve(url, filepath)  # noqa: S310
         if filename.endswith(".dsc"):
             dsc_path = str(filepath)
+        if filepath.exists():
+            continue
+        urllib.request.urlretrieve(url, filepath)  # noqa: S310
     return dsc_path
