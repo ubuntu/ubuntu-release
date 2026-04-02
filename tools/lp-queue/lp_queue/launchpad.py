@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import subprocess
 import tempfile
 import urllib.error
@@ -10,8 +9,6 @@ import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-
-logger = logging.getLogger(__name__)
 
 # Default Ubuntu series to operate on.
 DEFAULT_SERIES = "resolute"
@@ -80,21 +77,16 @@ class LaunchpadQueue:
         """
         from launchpadlib.launchpad import Launchpad
 
-        self._log("Launchpad.login_with('lp-queue-tui', 'production', version='devel')")
         self._lp = Launchpad.login_with(
             "lp-queue-tui",
             "production",
             version="devel",
         )
-        self._log("distributions['ubuntu']")
         self._ubuntu = self._lp.distributions["ubuntu"]
-        self._log("ubuntu.main_archive")
         self._archive = self._ubuntu.main_archive
-        self._log(f"ubuntu.getSeries(name_or_version={self.series!r})")
         self._series = self._ubuntu.getSeries(name_or_version=self.series)
 
     def lp_user_name(self) -> str:
-        self._log("lp.me.name")
         return self._lp.me.name
 
     def get_queue_items(self, status: str = QUEUE_STATUS_UNAPPROVED) -> list[QueueItem]:
@@ -126,6 +118,7 @@ class LaunchpadQueue:
                 lp_item=upload,
             )
             items.append(item)
+            self._log("Adding %s" % item)
         return items
 
     def get_debdiff(self, item: QueueItem) -> str:
@@ -146,7 +139,6 @@ class LaunchpadQueue:
             The debdiff output as a string, or the changes file content.
 
         """
-        self._log(f"get_debdiff({item.display_name})")
         current = self._get_current_source(item.source_name)
         if current is None:
             return self._get_changes_content(item)
@@ -163,8 +155,8 @@ class LaunchpadQueue:
                 try:
                     self._log(f"Fetching {item.display_name} from Ubuntu archive")
                     new_dsc = _download_source_files(item.lp_item.sourceFileUrls(), tmpdir)
-                except (OSError, urllib.error.URLError):
-                    logger.debug("LP source files unavailable for %s", item.display_name)
+                except (OSError, urllib.error.URLError) as e:
+                    self._log("LP source files unavailable for %s (%s)" % (item.display_name, e))
                     new_dsc = None
 
             #  For synced packages: fetch from the Debian archive via LP.
@@ -172,8 +164,8 @@ class LaunchpadQueue:
                 try:
                     self._log(f"Fetching {item.display_name} from Debian archive")
                     new_dsc = self._get_debian_source(item.source_name, item.version, tmpdir)
-                except (OSError, urllib.error.URLError):
-                    logger.debug("LP source files unavailable for %s", item.display_name)
+                except (OSError, urllib.error.URLError) as e:
+                    self._log("LP source files unavailable for %s (%s)" % (item.display_name, e))
                     new_dsc = None
 
             if old_dsc is None or new_dsc is None:
@@ -203,7 +195,6 @@ class LaunchpadQueue:
 
     def get_all_series(self) -> list[tuple[str, str, str]]:
         """Return all Ubuntu series as ``(name, version, status)`` tuples."""
-        self._log("ubuntu.series_collection")
         result: list[tuple[str, str, str]] = []
         for s in self._ubuntu.series:
             self._log(f"{s.name}: {s.status}")
@@ -218,7 +209,6 @@ class LaunchpadQueue:
         operate on the new series.
 
         """
-        self._log(f"ubuntu.getSeries(name_or_version={series_name!r})")
         self._series = self._ubuntu.getSeries(name_or_version=series_name)
         self.series = series_name
 
@@ -236,10 +226,6 @@ class LaunchpadQueue:
 
     def _get_current_source(self, source_name: str) -> object | None:
         """Return the currently published source in the archive, or None."""
-        self._log(
-            f"archive.getPublishedSources(source_name={source_name!r}, "
-            f"exact_match=True, status='Published')"
-        )
         sources = self._archive.getPublishedSources(
             source_name=source_name,
             exact_match=True,
@@ -259,20 +245,17 @@ class LaunchpadQueue:
         try:
             with urllib.request.urlopen(item.changes_file_url) as resp:  # noqa: S310
                 return resp.read().decode("utf-8", errors="replace")
-        except Exception:
-            logger.exception("Failed to fetch changes file")
+        except Exception as e:
+            self._log("Failed to fetch changes file (%s)" % e)
             return "(failed to fetch changes file)"
 
     def _ensure_debian_archive(self) -> None:
         """Lazily initialise the Debian archive reference via Launchpad."""
         if self._debian_archive is None:
-            self._log("Initializing Debian archive reference")
             debian = self._lp.distributions["debian"]
             self._debian_archive = debian.main_archive
 
-    def _get_debian_source(
-        self, source_name: str, version: str, dest: str
-    ) -> str | None:
+    def _get_debian_source(self, source_name: str, version: str, dest: str) -> str | None:
         """Download source files for *version* from Debian via the Launchpad API.
 
         Uses ``lp.distributions["debian"].main_archive.getPublishedSources()``
@@ -284,10 +267,6 @@ class LaunchpadQueue:
 
         """
         self._ensure_debian_archive()
-        self._log(
-            f"debian_archive.getPublishedSources(source_name={source_name!r}, "
-            f"version={version!r}, exact_match=True, status='Published')"
-        )
         try:
             sources = self._debian_archive.getPublishedSources(
                 source_name=source_name,
@@ -296,17 +275,17 @@ class LaunchpadQueue:
                 status="Published",
             )
         except Exception:
-            logger.exception("Failed to query Debian archive for %s %s", source_name, version)
+            self._log("Failed to query Debian archive for %s %s" % (source_name, version))
             return None
 
         if not sources:
-            logger.debug("No published Debian source found for %s %s", source_name, version)
+            self._log("No published Debian source found for %s %s" % (source_name, version))
             return None
 
         try:
             urls = sources[0].sourceFileUrls()
-        except Exception:
-            logger.exception("Failed to get source file URLs for %s %s", source_name, version)
+        except Exception as e:
+            self._log("Failed to get source file URLs for %s %s (%s)" % (source_name, version, e))
             return None
 
         return _download_source_files(urls, dest)
