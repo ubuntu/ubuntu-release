@@ -6,6 +6,7 @@ from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
+from textual.css.query import QueryError
 from textual.screen import ModalScreen
 from textual.widgets import (
     Button,
@@ -320,7 +321,7 @@ class QueueApp(App[None]):
         height: 1;
     }
 
-    .status-bar {
+    #status-bar {
         width: 100%;
         height: 1;
         background: $accent;
@@ -328,19 +329,19 @@ class QueueApp(App[None]):
         padding: 0 1;
     }
 
-    .status-bar.busy {
+    #status-bar.busy {
         background: $warning;
         color: $text;
         text-style: bold;
     }
 
-    .status-bar.error {
+    #status-bar.error {
         background: $error;
         color: $text;
         text-style: bold;
     }
 
-    .status-bar.success {
+    #status-bar.success {
         background: $success;
         color: $text;
     }
@@ -360,7 +361,7 @@ class QueueApp(App[None]):
         with Vertical(id="debug-panel"):
             yield Label("Launchpad Debug Log", classes="debug-title")
             yield RichLog(id="debug-log", highlight=True, markup=False)
-        yield Label("⏳ Connecting to Launchpad…", classes="status-bar busy")
+        yield Label("⏳ Connecting to Launchpad…", id="status-bar", classes="busy")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -397,13 +398,17 @@ class QueueApp(App[None]):
             state: Visual state — ``"busy"``, ``"error"``, ``"success"``, or
                 ``""`` for the default/idle look.
         """
-        bar = self.query_one(".status-bar", Label)
+        try:
+            bar = self.query_one("#status-bar", Label)
+        except QueryError:
+            return None
+
         bar.remove_class("busy", "error", "success")
         if state:
             bar.add_class(state)
-        msg = message
+        msg = message.replace("(", r"\(").replace("[", r"\[").replace("{", r"\{")
         if self.username:
-            msg = f"Connected as '{self.username}' - {message}"
+            msg = f"Connected as '{self.username}' - {msg}"
         bar.update(msg)
 
     def _get_selected_item(self) -> QueueItem | None:
