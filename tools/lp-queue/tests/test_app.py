@@ -79,6 +79,34 @@ class TestReviewScreen:
             await _pilot.pause()
             assert app.screen is screen
 
+    async def test_review_screen_uses_diff_highlighter(self):
+        """Test that the ReviewScreen writes content as a Syntax renderable with diff lexer."""
+        from unittest.mock import patch
+
+        from rich.syntax import Syntax
+
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            item = _make_item()
+            debdiff = "--- a/file\n+++ b/file\n@@ -1 +1 @@\n-old\n+new\n"
+            screen = ReviewScreen(item, debdiff)
+            written_objects = []
+            original_write = RichLog.write
+
+            def capture_write(self_log, content, *args, **kwargs):
+                written_objects.append(content)
+                return original_write(self_log, content, *args, **kwargs)
+
+            with patch.object(RichLog, "write", capture_write):
+                app.push_screen(screen)
+                await _pilot.pause()
+
+            assert len(written_objects) >= 1
+            assert isinstance(written_objects[0], Syntax)
+            assert written_objects[0]._lexer == "diff"
+
 
 class TestRejectScreen:
     """Tests for the RejectScreen modal."""

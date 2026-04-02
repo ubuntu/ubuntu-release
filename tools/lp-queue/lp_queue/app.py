@@ -71,8 +71,10 @@ class ReviewScreen(ModalScreen[None]):
 
     def on_mount(self) -> None:
         """Load the debdiff content into the log widget."""
+        from rich.syntax import Syntax
+
         log = self.query_one(RichLog)
-        log.write(self.debdiff)
+        log.write(Syntax(self.debdiff, "diff", line_numbers=False))
 
 
 class RejectScreen(ModalScreen[str | None]):
