@@ -15,6 +15,12 @@ logger = logging.getLogger(__name__)
 # Default Ubuntu series to operate on.
 DEFAULT_SERIES = "resolute"
 
+# Debian archive base URL for fetching source files.
+DEBIAN_ARCHIVE_URL = "https://deb.debian.org/debian"
+
+# Debian pool components to try when locating source packages.
+DEBIAN_COMPONENTS = ("main", "contrib", "non-free", "non-free-firmware")
+
 # Launchpad queue status strings expected by the API.
 QUEUE_STATUS_NEW = "New"
 QUEUE_STATUS_UNAPPROVED = "Unapproved"
@@ -134,6 +140,9 @@ class LaunchpadQueue:
         file content when no previous version exists or when debdiff is
         not installed.
 
+        For sync'd packages whose source files are not available via
+        Launchpad, the new version is fetched from the Debian archive.
+
         Args:
             item: The queue item to get the debdiff for.
 
@@ -148,7 +157,20 @@ class LaunchpadQueue:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             old_dsc = _download_source_files(current.sourceFileUrls(), tmpdir)
-            new_dsc = _download_source_files(item.lp_item.sourceFileUrls(), tmpdir)
+
+            # Try LP source files first; silently fall back for syncs.
+            try:
+                new_dsc = _download_source_files(item.lp_item.sourceFileUrls(), tmpdir)
+            except Exception:
+                new_dsc = None
+
+            # Fallback for synced packages: fetch from the Debian archive.
+            if new_dsc is None and item.is_sync:
+                self._log(
+                    f"Fetching {item.display_name} from Debian archive (sync fallback)"
+                )
+                new_dsc = _download_debian_source(item.source_name, item.version, tmpdir)
+
             if old_dsc is None or new_dsc is None:
                 return self._get_changes_content(item)
             return _run_debdiff(old_dsc, new_dsc)
@@ -282,3 +304,86 @@ def _run_debdiff(old_dsc: str, new_dsc: str) -> str:
         )
     except subprocess.TimeoutExpired:
         return "(debdiff timed out after 120 seconds)"
+
+
+def _debian_pool_prefix(source_name: str) -> str:
+    """Return the Debian pool directory prefix for a source package.
+
+    Packages starting with ``lib`` use a four-character prefix (e.g.
+    ``liba`` for ``libapt``); all others use their first character.
+    """
+    if source_name.startswith("lib") and len(source_name) > 3:
+        return source_name[:4]
+    return source_name[0]
+
+
+def _strip_epoch(version: str) -> str:
+    """Remove the epoch from a Debian version string.
+
+    ``"2:1.0-1"`` → ``"1.0-1"``, ``"1.0-1"`` → ``"1.0-1"``.
+    """
+    if ":" in version:
+        return version.split(":", 1)[1]
+    return version
+
+
+def _parse_dsc_files(dsc_content: str) -> list[str]:
+    """Parse a ``.dsc`` file and return the filenames listed in ``Files:``.
+
+    Returns:
+        A list of filenames referenced by the .dsc.
+
+    """
+    files: list[str] = []
+    in_files_section = False
+    for line in dsc_content.splitlines():
+        if line.startswith("Files:"):
+            in_files_section = True
+            continue
+        if in_files_section:
+            if line.startswith(" "):
+                parts = line.split()
+                if len(parts) >= 3:
+                    files.append(parts[-1])
+            else:
+                break
+    return files
+
+
+def _download_debian_source(source_name: str, version: str, dest: str) -> str | None:
+    """Download source files for *version* from the Debian archive.
+
+    Tries each Debian component (main, contrib, …) until the ``.dsc``
+    is found, then downloads the files it references.
+
+    Returns:
+        The local path to the downloaded ``.dsc``, or ``None`` on failure.
+
+    """
+    clean_version = _strip_epoch(version)
+    prefix = _debian_pool_prefix(source_name)
+    dsc_filename = f"{source_name}_{clean_version}.dsc"
+
+    for component in DEBIAN_COMPONENTS:
+        base_url = f"{DEBIAN_ARCHIVE_URL}/pool/{component}/{prefix}/{source_name}"
+        dsc_url = f"{base_url}/{dsc_filename}"
+        try:
+            dsc_path = Path(dest) / dsc_filename
+            urllib.request.urlretrieve(dsc_url, dsc_path)  # noqa: S310
+        except Exception:
+            continue
+
+        # .dsc found in this component – download the referenced files.
+        try:
+            dsc_content = dsc_path.read_text(encoding="utf-8", errors="replace")
+            for filename in _parse_dsc_files(dsc_content):
+                file_url = f"{base_url}/{filename}"
+                filepath = Path(dest) / filename
+                urllib.request.urlretrieve(file_url, filepath)  # noqa: S310
+        except Exception:
+            logger.exception("Failed to download Debian source files")
+            return None
+
+        return str(dsc_path)
+
+    return None

@@ -1,14 +1,19 @@
 """Tests for the launchpad module."""
 
 import subprocess
+import unittest.mock
 from unittest.mock import MagicMock, patch
 
 from lp_queue.launchpad import (
     LaunchpadQueue,
     QueueItem,
+    _debian_pool_prefix,
+    _download_debian_source,
     _download_source_files,
     _is_sync,
+    _parse_dsc_files,
     _run_debdiff,
+    _strip_epoch,
 )
 
 # ---------------------------------------------------------------------------
@@ -186,7 +191,7 @@ class TestLaunchpadQueue:
         lp._log("ignored")
 
     def test_get_all_series(self):
-        """Test get_all_series returns tuples of (name, version, active)."""
+        """Test get_all_series returns non-Obsolete series tuples."""
         lp = LaunchpadQueue()
 
         mock_series_1 = MagicMock()
@@ -210,10 +215,10 @@ class TestLaunchpadQueue:
 
         result = lp.get_all_series()
 
-        assert len(result) == 3
+        # Obsolete series are filtered out
+        assert len(result) == 2
         assert result[0] == ("resolute", "26.04", "Active Development")
         assert result[1] == ("noble", "24.04", "Supported")
-        assert result[2] == ("trusty", "14.04", "Obsolete")
 
     def test_switch_series(self):
         """Test switch_series updates the active series."""
@@ -309,3 +314,273 @@ class TestDownloadSourceFiles:
         urls = ["https://example.com/hello_2.10.orig.tar.gz"]
         result = _download_source_files(urls, str(tmp_path))
         assert result is None
+
+
+class TestDebianPoolPrefix:
+    """Tests for the _debian_pool_prefix helper."""
+
+    def test_regular_package(self):
+        assert _debian_pool_prefix("hello") == "h"
+
+    def test_lib_package(self):
+        assert _debian_pool_prefix("libapt") == "liba"
+
+    def test_short_lib_package(self):
+        """Packages named exactly 'lib' use first-char prefix."""
+        assert _debian_pool_prefix("lib") == "l"
+
+    def test_single_char_package(self):
+        assert _debian_pool_prefix("a") == "a"
+
+    def test_lib_four_char(self):
+        """A lib-prefixed package with exactly 4 chars uses 4-char prefix."""
+        assert _debian_pool_prefix("libx") == "libx"
+
+
+class TestStripEpoch:
+    """Tests for the _strip_epoch helper."""
+
+    def test_no_epoch(self):
+        assert _strip_epoch("2.10-3") == "2.10-3"
+
+    def test_with_epoch(self):
+        assert _strip_epoch("2:1.0-1") == "1.0-1"
+
+    def test_zero_epoch(self):
+        assert _strip_epoch("0:1.2-3") == "1.2-3"
+
+    def test_colon_in_version(self):
+        """Only the first colon is treated as the epoch separator."""
+        assert _strip_epoch("1:2:3-4") == "2:3-4"
+
+
+class TestParseDscFiles:
+    """Tests for the _parse_dsc_files helper."""
+
+    def test_standard_dsc(self):
+        dsc_content = (
+            "Format: 3.0 (quilt)\n"
+            "Source: hello\n"
+            "Version: 2.10-3\n"
+            "Files:\n"
+            " abc123 1234 hello_2.10.orig.tar.gz\n"
+            " def456 5678 hello_2.10-3.debian.tar.xz\n"
+        )
+        files = _parse_dsc_files(dsc_content)
+        assert files == ["hello_2.10.orig.tar.gz", "hello_2.10-3.debian.tar.xz"]
+
+    def test_followed_by_another_section(self):
+        dsc_content = (
+            "Files:\n"
+            " abc123 1234 hello_2.10.orig.tar.gz\n"
+            "Checksums-Sha256:\n"
+            " sha256hash 1234 hello_2.10.orig.tar.gz\n"
+        )
+        files = _parse_dsc_files(dsc_content)
+        assert files == ["hello_2.10.orig.tar.gz"]
+
+    def test_empty_files_section(self):
+        dsc_content = "Format: 3.0 (quilt)\nFiles:\nChecksums-Sha256:\n"
+        files = _parse_dsc_files(dsc_content)
+        assert files == []
+
+    def test_no_files_section(self):
+        dsc_content = "Format: 3.0 (quilt)\nSource: hello\n"
+        files = _parse_dsc_files(dsc_content)
+        assert files == []
+
+
+class TestDownloadDebianSource:
+    """Tests for the _download_debian_source helper."""
+
+    @patch("lp_queue.launchpad.urllib.request.urlretrieve")
+    def test_success_main_component(self, mock_urlretrieve, tmp_path):
+        dsc_content = (
+            "Format: 3.0 (quilt)\n"
+            "Files:\n"
+            " abc123 1234 hello_2.10.orig.tar.gz\n"
+            " def456 5678 hello_2.10-3.debian.tar.xz\n"
+        )
+
+        def fake_urlretrieve(url, filepath):
+            if filepath.name.endswith(".dsc"):
+                filepath.write_text(dsc_content)
+
+        mock_urlretrieve.side_effect = lambda url, fp: fake_urlretrieve(url, fp)
+        result = _download_debian_source("hello", "2.10-3", str(tmp_path))
+
+        assert result is not None
+        assert result.endswith("hello_2.10-3.dsc")
+        # .dsc + 2 referenced files = 3 calls
+        assert mock_urlretrieve.call_count == 3
+
+    @patch("lp_queue.launchpad.urllib.request.urlretrieve")
+    def test_strips_epoch(self, mock_urlretrieve, tmp_path):
+        dsc_content = "Format: 3.0 (quilt)\nFiles:\n"
+
+        def fake_urlretrieve(url, filepath):
+            if filepath.name.endswith(".dsc"):
+                filepath.write_text(dsc_content)
+
+        mock_urlretrieve.side_effect = lambda url, fp: fake_urlretrieve(url, fp)
+        result = _download_debian_source("hello", "2:1.0-1", str(tmp_path))
+
+        assert result is not None
+        assert "hello_1.0-1.dsc" in result
+
+    @patch("lp_queue.launchpad.urllib.request.urlretrieve")
+    def test_tries_components(self, mock_urlretrieve, tmp_path):
+        """Falls back through components when main returns 404."""
+        dsc_content = "Format: 3.0 (quilt)\nFiles:\n"
+        calls = []
+
+        def fake_urlretrieve(url, filepath):
+            calls.append(url)
+            if "/main/" in url:
+                raise Exception("404")
+            if filepath.name.endswith(".dsc"):
+                filepath.write_text(dsc_content)
+
+        mock_urlretrieve.side_effect = lambda url, fp: fake_urlretrieve(url, fp)
+        result = _download_debian_source("hello", "2.10-3", str(tmp_path))
+
+        assert result is not None
+        # First call tried main and failed, second call tried contrib and succeeded
+        assert any("/main/" in c for c in calls)
+        assert any("/contrib/" in c for c in calls)
+
+    @patch("lp_queue.launchpad.urllib.request.urlretrieve", side_effect=Exception("404"))
+    def test_all_components_fail(self, mock_urlretrieve, tmp_path):
+        result = _download_debian_source("hello", "2.10-3", str(tmp_path))
+        assert result is None
+
+    @patch("lp_queue.launchpad.urllib.request.urlretrieve")
+    def test_lib_package_prefix(self, mock_urlretrieve, tmp_path):
+        dsc_content = "Format: 3.0 (quilt)\nFiles:\n"
+
+        def fake_urlretrieve(url, filepath):
+            if filepath.name.endswith(".dsc"):
+                filepath.write_text(dsc_content)
+
+        mock_urlretrieve.side_effect = lambda url, fp: fake_urlretrieve(url, fp)
+        result = _download_debian_source("libapt", "2.0-1", str(tmp_path))
+
+        assert result is not None
+        # Verify the URL used the correct 4-char prefix
+        first_call_url = mock_urlretrieve.call_args_list[0][0][0]
+        assert "/liba/libapt/" in first_call_url
+
+
+class TestDebdiffSyncFallback:
+    """Tests for the Debian archive fallback in get_debdiff."""
+
+    @patch("lp_queue.launchpad._download_debian_source")
+    @patch("lp_queue.launchpad._download_source_files")
+    @patch("lp_queue.launchpad._run_debdiff")
+    def test_sync_fallback_used(self, mock_debdiff, mock_dl_source, mock_dl_debian):
+        """When LP source files are empty for a sync, Debian fallback is used."""
+        lp = LaunchpadQueue()
+
+        mock_current = MagicMock()
+        mock_current.sourceFileUrls.return_value = [
+            "https://lp.example.com/hello_2.10-2ubuntu1.dsc",
+        ]
+        lp._archive = MagicMock()
+        lp._archive.getPublishedSources.return_value = [mock_current]
+        lp._series = MagicMock()
+
+        mock_lp_item = MagicMock()
+        mock_lp_item.sourceFileUrls.return_value = []
+        item = QueueItem(
+            source_name="hello",
+            version="2.10-3",
+            component="main",
+            section="devel",
+            archive_url="",
+            date_created="2025-01-01",
+            status="Unapproved",
+            is_sync=True,
+            changes_file_url=None,
+            lp_item=mock_lp_item,
+        )
+
+        # First call (old) returns a .dsc path, second call (new, empty) returns None
+        mock_dl_source.side_effect = ["/tmp/old.dsc", None]
+        mock_dl_debian.return_value = "/tmp/new.dsc"
+        mock_debdiff.return_value = "diff output"
+
+        result = lp.get_debdiff(item)
+
+        assert result == "diff output"
+        mock_dl_debian.assert_called_once_with("hello", "2.10-3", unittest.mock.ANY)
+        mock_debdiff.assert_called_once_with("/tmp/old.dsc", "/tmp/new.dsc")
+
+    @patch("lp_queue.launchpad._download_source_files")
+    @patch("lp_queue.launchpad._run_debdiff")
+    def test_non_sync_no_fallback(self, mock_debdiff, mock_dl_source):
+        """Non-sync packages should NOT trigger the Debian fallback."""
+        lp = LaunchpadQueue()
+
+        mock_current = MagicMock()
+        mock_current.sourceFileUrls.return_value = []
+        lp._archive = MagicMock()
+        lp._archive.getPublishedSources.return_value = [mock_current]
+        lp._series = MagicMock()
+
+        mock_lp_item = MagicMock()
+        mock_lp_item.sourceFileUrls.return_value = []
+        item = QueueItem(
+            source_name="hello",
+            version="2.10-3ubuntu1",
+            component="main",
+            section="devel",
+            archive_url="",
+            date_created="2025-01-01",
+            status="Unapproved",
+            is_sync=False,
+            changes_file_url=None,
+            lp_item=mock_lp_item,
+        )
+
+        mock_dl_source.return_value = None
+
+        result = lp.get_debdiff(item)
+
+        assert "(no changes file available)" in result
+
+    @patch("lp_queue.launchpad._download_debian_source")
+    @patch("lp_queue.launchpad._download_source_files")
+    def test_sync_fallback_lp_throws(self, mock_dl_source, mock_dl_debian):
+        """When LP sourceFileUrls() throws for a sync, Debian fallback is used."""
+        lp = LaunchpadQueue()
+
+        mock_current = MagicMock()
+        mock_current.sourceFileUrls.return_value = []
+        lp._archive = MagicMock()
+        lp._archive.getPublishedSources.return_value = [mock_current]
+        lp._series = MagicMock()
+
+        mock_lp_item = MagicMock()
+        mock_lp_item.sourceFileUrls.side_effect = Exception("API error")
+        item = QueueItem(
+            source_name="hello",
+            version="2.10-3",
+            component="main",
+            section="devel",
+            archive_url="",
+            date_created="2025-01-01",
+            status="Unapproved",
+            is_sync=True,
+            changes_file_url=None,
+            lp_item=mock_lp_item,
+        )
+
+        mock_dl_source.return_value = "/tmp/old.dsc"
+        mock_dl_debian.return_value = None
+
+        result = lp.get_debdiff(item)
+
+        # Debian fallback was attempted
+        mock_dl_debian.assert_called_once()
+        # But it also returned None, so falls back to changes content
+        assert "(no changes file available)" in result
