@@ -170,7 +170,37 @@ class LaunchpadQueue:
 
             if old_dsc is None or new_dsc is None:
                 return self._get_changes_content(item)
-            return _run_debdiff(old_dsc, new_dsc)
+            return self._run_debdiff(tmpdir, old_dsc, new_dsc)
+
+    def _run_debdiff(self, tmpdir: str, old_dsc: str, new_dsc: str) -> str:
+        """Run some diff between two .dsc files and return the output."""
+        # Get a diffoscope HTML output for very rich diffing
+        try:
+            output = Path("/tmp") / (
+                Path(old_dsc).stem + "_" + Path(new_dsc).stem + "_debdiff.html"
+            )
+            subprocess.run(["diffoscope", "--html", str(output), old_dsc, new_dsc], timeout=120)
+            subprocess.run(["xdg-open", str(output)], timeout=120)
+        except FileNotFoundError:
+            self._log(
+                "(diffoscope not found — install at least the 'diffoscope-minimal' package: sudo apt install diffoscope-minimal)"
+            )
+        # Display debdiff in the main console output
+        try:
+            result = subprocess.run(
+                ["debdiff", old_dsc, new_dsc],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            # debdiff returns 0 for no diff, 1 for diff found (both are OK)
+            if result.returncode <= 1:
+                return result.stdout or "(no differences found)"
+            return result.stderr or f"(debdiff exited with code {result.returncode})"
+        except FileNotFoundError:
+            return "(debdiff not found — install the 'devscripts' package: sudo apt install devscripts)"
+        except subprocess.TimeoutExpired:
+            return "(debdiff timed out after 120 seconds)"
 
     def accept(self, item: QueueItem) -> None:
         """Accept a queue item.
@@ -315,26 +345,3 @@ def _download_source_files(urls: list[str], dest: str) -> str | None:
         if filename.endswith(".dsc"):
             dsc_path = str(filepath)
     return dsc_path
-
-
-def _run_debdiff(old_dsc: str, new_dsc: str) -> str:
-    """Run debdiff between two .dsc files and return the output."""
-    try:
-        result = subprocess.run(
-            ["debdiff", old_dsc, new_dsc],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        # debdiff returns 0 for no diff, 1 for diff found (both are OK)
-        if result.returncode <= 1:
-            return result.stdout or "(no differences found)"
-        return result.stderr or f"(debdiff exited with code {result.returncode})"
-    except FileNotFoundError:
-        return (
-            "(debdiff not found — install the 'devscripts' package: sudo apt install devscripts)"
-        )
-    except subprocess.TimeoutExpired:
-        return "(debdiff timed out after 120 seconds)"
-
-
