@@ -42,7 +42,7 @@ class QueueItem:
     @property
     def display_name(self) -> str:
         """Return a display-friendly name for the item."""
-        return f"{self.source_name} {self.version}"
+        return f"{self.source_name}/{self.version}"
 
 
 class LaunchpadQueue:
@@ -151,24 +151,30 @@ class LaunchpadQueue:
         if current is None:
             return self._get_changes_content(item)
 
+        self._log(
+            f"Found current source package: {current.source_package_name}/{current.source_package_version}"
+        )
+
         with tempfile.TemporaryDirectory() as tmpdir:
             old_dsc = _download_source_files(current.sourceFileUrls(), tmpdir)
 
-            # Try LP source files first; silently fall back for syncs.
-            try:
-                new_dsc = _download_source_files(item.lp_item.sourceFileUrls(), tmpdir)
-            except (OSError, urllib.error.URLError):
-                logger.debug("LP source files unavailable for %s", item.display_name)
-                new_dsc = None
+            if not item.is_sync:
+                # Try LP source files first; silently fall back for syncs.
+                try:
+                    self._log(f"Fetching {item.display_name} from Ubuntu archive")
+                    new_dsc = _download_source_files(item.lp_item.sourceFileUrls(), tmpdir)
+                except (OSError, urllib.error.URLError):
+                    logger.debug("LP source files unavailable for %s", item.display_name)
+                    new_dsc = None
 
-            # Fallback for synced packages: fetch from the Debian archive via LP.
-            if new_dsc is None and item.is_sync:
-                self._log(
-                    f"Fetching {item.display_name} from Debian archive via Launchpad"
-                )
-                new_dsc = self._get_debian_source(
-                    item.source_name, item.version, tmpdir
-                )
+            #  For synced packages: fetch from the Debian archive via LP.
+            if item.is_sync:
+                try:
+                    self._log(f"Fetching {item.display_name} from Debian archive")
+                    new_dsc = self._get_debian_source(item.source_name, item.version, tmpdir)
+                except (OSError, urllib.error.URLError):
+                    logger.debug("LP source files unavailable for %s", item.display_name)
+                    new_dsc = None
 
             if old_dsc is None or new_dsc is None:
                 return self._get_changes_content(item)
