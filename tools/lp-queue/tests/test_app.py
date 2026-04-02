@@ -105,7 +105,7 @@ class TestReviewScreen:
 
             assert len(written_objects) >= 1
             assert isinstance(written_objects[0], Syntax)
-            assert written_objects[0]._lexer == "diff"
+            assert written_objects[0].lexer.name == "Diff"
 
 
 class TestRejectScreen:
