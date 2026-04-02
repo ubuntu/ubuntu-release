@@ -290,6 +290,18 @@ class TestRunDebdiff:
         assert "devscripts" in result
 
     @patch("lp_queue.launchpad.subprocess.run")
+    def test_diffoscope_missing_debdiff_succeeds(self, mock_run, tmp_path):
+        # diffoscope not found, but debdiff works fine
+        mock_run.side_effect = [
+            FileNotFoundError,  # diffoscope
+            MagicMock(returncode=0, stdout="diff output", stderr=""),  # debdiff
+        ]
+        lp = LaunchpadQueue()
+        lp.work_dir = tmp_path
+        result = lp._run_debdiff("/a.dsc", "/b.dsc")
+        assert result == "diff output"
+
+    @patch("lp_queue.launchpad.subprocess.run")
     def test_timeout(self, mock_run, tmp_path):
         # First call is diffoscope (succeeds), second is debdiff (times out)
         mock_run.side_effect = [
@@ -541,8 +553,8 @@ class TestDebdiffSyncFallback:
         assert "(no changes file available)" in result
 
     @patch("lp_queue.launchpad._download_source_files")
-    def test_sync_fallback_lp_throws(self, mock_dl_source, tmp_path):
-        """When Debian LP API returns no sources, falls back to changes content."""
+    def test_sync_fallback_no_debian_source(self, mock_dl_source, tmp_path):
+        """When Debian LP API returns no published sources, falls back to changes content."""
         lp = LaunchpadQueue()
         lp.work_dir = tmp_path
 
