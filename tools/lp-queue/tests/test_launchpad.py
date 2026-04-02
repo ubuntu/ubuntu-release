@@ -1,19 +1,14 @@
 """Tests for the launchpad module."""
 
 import subprocess
-import unittest.mock
 from unittest.mock import MagicMock, patch
 
 from lp_queue.launchpad import (
     LaunchpadQueue,
     QueueItem,
-    _debian_pool_prefix,
-    _download_debian_source,
     _download_source_files,
     _is_sync,
-    _parse_dsc_files,
     _run_debdiff,
-    _strip_epoch,
 )
 
 # ---------------------------------------------------------------------------
@@ -316,169 +311,135 @@ class TestDownloadSourceFiles:
         assert result is None
 
 
-class TestDebianPoolPrefix:
-    """Tests for the _debian_pool_prefix helper."""
+class TestGetDebianSource:
+    """Tests for the LaunchpadQueue._get_debian_source method."""
 
-    def test_regular_package(self):
-        assert _debian_pool_prefix("hello") == "h"
+    def test_success(self, tmp_path):
+        """Successfully fetch source files from Debian via LP API."""
+        lp = LaunchpadQueue()
 
-    def test_lib_package(self):
-        assert _debian_pool_prefix("libapt") == "liba"
+        mock_lp = MagicMock()
+        mock_debian = MagicMock()
+        mock_debian_archive = MagicMock()
+        mock_lp.distributions.__getitem__.return_value = mock_debian
+        mock_debian.main_archive = mock_debian_archive
 
-    def test_short_lib_package(self):
-        """Packages named exactly 'lib' use first-char prefix."""
-        assert _debian_pool_prefix("lib") == "l"
+        mock_source = MagicMock()
+        mock_source.sourceFileUrls.return_value = [
+            "https://example.com/hello_2.10.orig.tar.gz",
+            "https://example.com/hello_2.10-3.debian.tar.xz",
+            "https://example.com/hello_2.10-3.dsc",
+        ]
+        mock_debian_archive.getPublishedSources.return_value = [mock_source]
+        lp._lp = mock_lp
 
-    def test_single_char_package(self):
-        assert _debian_pool_prefix("a") == "a"
-
-    def test_lib_four_char(self):
-        """A lib-prefixed package with exactly 4 chars uses 4-char prefix."""
-        assert _debian_pool_prefix("libx") == "libx"
-
-
-class TestStripEpoch:
-    """Tests for the _strip_epoch helper."""
-
-    def test_no_epoch(self):
-        assert _strip_epoch("2.10-3") == "2.10-3"
-
-    def test_with_epoch(self):
-        assert _strip_epoch("2:1.0-1") == "1.0-1"
-
-    def test_zero_epoch(self):
-        assert _strip_epoch("0:1.2-3") == "1.2-3"
-
-    def test_colon_in_version(self):
-        """Only the first colon is treated as the epoch separator."""
-        assert _strip_epoch("1:2:3-4") == "2:3-4"
-
-
-class TestParseDscFiles:
-    """Tests for the _parse_dsc_files helper."""
-
-    def test_standard_dsc(self):
-        dsc_content = (
-            "Format: 3.0 (quilt)\n"
-            "Source: hello\n"
-            "Version: 2.10-3\n"
-            "Files:\n"
-            " abc123 1234 hello_2.10.orig.tar.gz\n"
-            " def456 5678 hello_2.10-3.debian.tar.xz\n"
-        )
-        files = _parse_dsc_files(dsc_content)
-        assert files == ["hello_2.10.orig.tar.gz", "hello_2.10-3.debian.tar.xz"]
-
-    def test_followed_by_another_section(self):
-        dsc_content = (
-            "Files:\n"
-            " abc123 1234 hello_2.10.orig.tar.gz\n"
-            "Checksums-Sha256:\n"
-            " sha256hash 1234 hello_2.10.orig.tar.gz\n"
-        )
-        files = _parse_dsc_files(dsc_content)
-        assert files == ["hello_2.10.orig.tar.gz"]
-
-    def test_empty_files_section(self):
-        dsc_content = "Format: 3.0 (quilt)\nFiles:\nChecksums-Sha256:\n"
-        files = _parse_dsc_files(dsc_content)
-        assert files == []
-
-    def test_no_files_section(self):
-        dsc_content = "Format: 3.0 (quilt)\nSource: hello\n"
-        files = _parse_dsc_files(dsc_content)
-        assert files == []
-
-
-class TestDownloadDebianSource:
-    """Tests for the _download_debian_source helper."""
-
-    @patch("lp_queue.launchpad.urllib.request.urlretrieve")
-    def test_success_main_component(self, mock_urlretrieve, tmp_path):
-        dsc_content = (
-            "Format: 3.0 (quilt)\n"
-            "Files:\n"
-            " abc123 1234 hello_2.10.orig.tar.gz\n"
-            " def456 5678 hello_2.10-3.debian.tar.xz\n"
-        )
-
-        def fake_urlretrieve(url, filepath):
-            if filepath.name.endswith(".dsc"):
-                filepath.write_text(dsc_content)
-
-        mock_urlretrieve.side_effect = lambda url, fp: fake_urlretrieve(url, fp)
-        result = _download_debian_source("hello", "2.10-3", str(tmp_path))
+        with patch("lp_queue.launchpad.urllib.request.urlretrieve"):
+            result = lp._get_debian_source("hello", "2.10-3", str(tmp_path))
 
         assert result is not None
         assert result.endswith("hello_2.10-3.dsc")
-        # .dsc + 2 referenced files = 3 calls
-        assert mock_urlretrieve.call_count == 3
+        mock_debian_archive.getPublishedSources.assert_called_once_with(
+            source_name="hello",
+            version="2.10-3",
+            exact_match=True,
+            status="Published",
+        )
 
-    @patch("lp_queue.launchpad.urllib.request.urlretrieve")
-    def test_strips_epoch(self, mock_urlretrieve, tmp_path):
-        dsc_content = "Format: 3.0 (quilt)\nFiles:\n"
+    def test_no_sources_found(self, tmp_path):
+        """Return None when no Debian source is found."""
+        lp = LaunchpadQueue()
 
-        def fake_urlretrieve(url, filepath):
-            if filepath.name.endswith(".dsc"):
-                filepath.write_text(dsc_content)
+        mock_lp = MagicMock()
+        mock_debian = MagicMock()
+        mock_debian_archive = MagicMock()
+        mock_lp.distributions.__getitem__.return_value = mock_debian
+        mock_debian.main_archive = mock_debian_archive
+        mock_debian_archive.getPublishedSources.return_value = []
+        lp._lp = mock_lp
 
-        mock_urlretrieve.side_effect = lambda url, fp: fake_urlretrieve(url, fp)
-        result = _download_debian_source("hello", "2:1.0-1", str(tmp_path))
-
-        assert result is not None
-        assert "hello_1.0-1.dsc" in result
-
-    @patch("lp_queue.launchpad.urllib.request.urlretrieve")
-    def test_tries_components(self, mock_urlretrieve, tmp_path):
-        """Falls back through components when main returns 404."""
-        dsc_content = "Format: 3.0 (quilt)\nFiles:\n"
-        calls = []
-
-        def fake_urlretrieve(url, filepath):
-            calls.append(url)
-            if "/main/" in url:
-                raise OSError("404")
-            if filepath.name.endswith(".dsc"):
-                filepath.write_text(dsc_content)
-
-        mock_urlretrieve.side_effect = lambda url, fp: fake_urlretrieve(url, fp)
-        result = _download_debian_source("hello", "2.10-3", str(tmp_path))
-
-        assert result is not None
-        # First call tried main and failed, second call tried contrib and succeeded
-        assert any("/main/" in c for c in calls)
-        assert any("/contrib/" in c for c in calls)
-
-    @patch("lp_queue.launchpad.urllib.request.urlretrieve", side_effect=OSError("404"))
-    def test_all_components_fail(self, mock_urlretrieve, tmp_path):
-        result = _download_debian_source("hello", "2.10-3", str(tmp_path))
+        result = lp._get_debian_source("nonexistent", "1.0-1", str(tmp_path))
         assert result is None
 
-    @patch("lp_queue.launchpad.urllib.request.urlretrieve")
-    def test_lib_package_prefix(self, mock_urlretrieve, tmp_path):
-        dsc_content = "Format: 3.0 (quilt)\nFiles:\n"
+    def test_api_error(self, tmp_path):
+        """Return None when the LP API call raises an exception."""
+        lp = LaunchpadQueue()
 
-        def fake_urlretrieve(url, filepath):
-            if filepath.name.endswith(".dsc"):
-                filepath.write_text(dsc_content)
+        mock_lp = MagicMock()
+        mock_debian = MagicMock()
+        mock_debian_archive = MagicMock()
+        mock_lp.distributions.__getitem__.return_value = mock_debian
+        mock_debian.main_archive = mock_debian_archive
+        mock_debian_archive.getPublishedSources.side_effect = Exception("API error")
+        lp._lp = mock_lp
 
-        mock_urlretrieve.side_effect = lambda url, fp: fake_urlretrieve(url, fp)
-        result = _download_debian_source("libapt", "2.0-1", str(tmp_path))
+        result = lp._get_debian_source("hello", "2.10-3", str(tmp_path))
+        assert result is None
 
-        assert result is not None
-        # Verify the URL used the correct 4-char prefix
-        first_call_url = mock_urlretrieve.call_args_list[0][0][0]
-        assert "/liba/libapt/" in first_call_url
+    def test_source_file_urls_error(self, tmp_path):
+        """Return None when sourceFileUrls() raises an exception."""
+        lp = LaunchpadQueue()
+
+        mock_lp = MagicMock()
+        mock_debian = MagicMock()
+        mock_debian_archive = MagicMock()
+        mock_lp.distributions.__getitem__.return_value = mock_debian
+        mock_debian.main_archive = mock_debian_archive
+
+        mock_source = MagicMock()
+        mock_source.sourceFileUrls.side_effect = Exception("URL error")
+        mock_debian_archive.getPublishedSources.return_value = [mock_source]
+        lp._lp = mock_lp
+
+        result = lp._get_debian_source("hello", "2.10-3", str(tmp_path))
+        assert result is None
+
+    def test_caches_debian_archive(self, tmp_path):
+        """The Debian archive reference is lazily cached after first use."""
+        lp = LaunchpadQueue()
+
+        mock_lp = MagicMock()
+        mock_debian = MagicMock()
+        mock_debian_archive = MagicMock()
+        mock_lp.distributions.__getitem__.return_value = mock_debian
+        mock_debian.main_archive = mock_debian_archive
+        mock_debian_archive.getPublishedSources.return_value = []
+        lp._lp = mock_lp
+
+        lp._get_debian_source("hello", "1.0-1", str(tmp_path))
+        lp._get_debian_source("world", "2.0-1", str(tmp_path))
+
+        # distributions["debian"] should only be accessed once
+        mock_lp.distributions.__getitem__.assert_called_once_with("debian")
+
+    def test_version_with_epoch(self, tmp_path):
+        """Epochs are passed through to the LP API as-is."""
+        lp = LaunchpadQueue()
+
+        mock_lp = MagicMock()
+        mock_debian = MagicMock()
+        mock_debian_archive = MagicMock()
+        mock_lp.distributions.__getitem__.return_value = mock_debian
+        mock_debian.main_archive = mock_debian_archive
+        mock_debian_archive.getPublishedSources.return_value = []
+        lp._lp = mock_lp
+
+        lp._get_debian_source("hello", "2:1.0-1", str(tmp_path))
+
+        mock_debian_archive.getPublishedSources.assert_called_once_with(
+            source_name="hello",
+            version="2:1.0-1",
+            exact_match=True,
+            status="Published",
+        )
 
 
 class TestDebdiffSyncFallback:
     """Tests for the Debian archive fallback in get_debdiff."""
 
-    @patch("lp_queue.launchpad._download_debian_source")
     @patch("lp_queue.launchpad._download_source_files")
     @patch("lp_queue.launchpad._run_debdiff")
-    def test_sync_fallback_used(self, mock_debdiff, mock_dl_source, mock_dl_debian):
-        """When LP source files are empty for a sync, Debian fallback is used."""
+    def test_sync_fallback_used(self, mock_debdiff, mock_dl_source):
+        """When LP source files are empty for a sync, Debian LP fallback is used."""
         lp = LaunchpadQueue()
 
         mock_current = MagicMock()
@@ -488,6 +449,20 @@ class TestDebdiffSyncFallback:
         lp._archive = MagicMock()
         lp._archive.getPublishedSources.return_value = [mock_current]
         lp._series = MagicMock()
+
+        # Set up the Debian archive mock
+        mock_lp_obj = MagicMock()
+        mock_debian = MagicMock()
+        mock_debian_archive = MagicMock()
+        mock_lp_obj.distributions.__getitem__.return_value = mock_debian
+        mock_debian.main_archive = mock_debian_archive
+
+        mock_deb_source = MagicMock()
+        mock_deb_source.sourceFileUrls.return_value = [
+            "https://example.com/hello_2.10-3.dsc",
+        ]
+        mock_debian_archive.getPublishedSources.return_value = [mock_deb_source]
+        lp._lp = mock_lp_obj
 
         mock_lp_item = MagicMock()
         mock_lp_item.sourceFileUrls.return_value = []
@@ -504,15 +479,20 @@ class TestDebdiffSyncFallback:
             lp_item=mock_lp_item,
         )
 
-        # First call (old) returns a .dsc path, second call (new, empty) returns None
-        mock_dl_source.side_effect = ["/tmp/old.dsc", None]
-        mock_dl_debian.return_value = "/tmp/new.dsc"
+        # First call (old) returns a .dsc path, second call (new, empty) returns None,
+        # third call (Debian fallback) returns the new .dsc path.
+        mock_dl_source.side_effect = ["/tmp/old.dsc", None, "/tmp/new.dsc"]
         mock_debdiff.return_value = "diff output"
 
         result = lp.get_debdiff(item)
 
         assert result == "diff output"
-        mock_dl_debian.assert_called_once_with("hello", "2.10-3", unittest.mock.ANY)
+        mock_debian_archive.getPublishedSources.assert_called_once_with(
+            source_name="hello",
+            version="2.10-3",
+            exact_match=True,
+            status="Published",
+        )
         mock_debdiff.assert_called_once_with("/tmp/old.dsc", "/tmp/new.dsc")
 
     @patch("lp_queue.launchpad._download_source_files")
@@ -548,10 +528,9 @@ class TestDebdiffSyncFallback:
 
         assert "(no changes file available)" in result
 
-    @patch("lp_queue.launchpad._download_debian_source")
     @patch("lp_queue.launchpad._download_source_files")
-    def test_sync_fallback_lp_throws(self, mock_dl_source, mock_dl_debian):
-        """When LP sourceFileUrls() throws for a sync, Debian fallback is used."""
+    def test_sync_fallback_lp_throws(self, mock_dl_source):
+        """When LP sourceFileUrls() throws for a sync, Debian LP fallback is used."""
         lp = LaunchpadQueue()
 
         mock_current = MagicMock()
@@ -559,6 +538,15 @@ class TestDebdiffSyncFallback:
         lp._archive = MagicMock()
         lp._archive.getPublishedSources.return_value = [mock_current]
         lp._series = MagicMock()
+
+        # Set up the Debian archive mock that returns no sources
+        mock_lp_obj = MagicMock()
+        mock_debian = MagicMock()
+        mock_debian_archive = MagicMock()
+        mock_lp_obj.distributions.__getitem__.return_value = mock_debian
+        mock_debian.main_archive = mock_debian_archive
+        mock_debian_archive.getPublishedSources.return_value = []
+        lp._lp = mock_lp_obj
 
         mock_lp_item = MagicMock()
         mock_lp_item.sourceFileUrls.side_effect = OSError("API error")
@@ -576,11 +564,10 @@ class TestDebdiffSyncFallback:
         )
 
         mock_dl_source.return_value = "/tmp/old.dsc"
-        mock_dl_debian.return_value = None
 
         result = lp.get_debdiff(item)
 
-        # Debian fallback was attempted
-        mock_dl_debian.assert_called_once()
-        # But it also returned None, so falls back to changes content
+        # Debian fallback was attempted via LP API
+        mock_debian_archive.getPublishedSources.assert_called_once()
+        # But it returned no sources, so falls back to changes content
         assert "(no changes file available)" in result
