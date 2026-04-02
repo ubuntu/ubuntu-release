@@ -291,7 +291,7 @@ class QueueApp(App[None]):
         Binding("j", "reject", "Reject"),
         Binding("f2", "switch_series", "Series"),
         Binding("f5", "refresh", "Refresh"),
-        Binding("tilde", "toggle_debug", "Debug", show=False),
+        Binding("tilde", "toggle_debug", "Debug log"),
         Binding("q", "quit", "Quit"),
     ]
 
