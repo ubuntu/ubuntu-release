@@ -473,7 +473,10 @@ class QueueApp(App[None]):
         """Fetch the list of Ubuntu series in a worker thread."""
         self.app.call_from_thread(self._set_status, "⏳ Loading series list…", "busy")
         try:
-            series_list = self.lp_queue.get_all_series()
+            series_list = getattr(self, "series_list", None)
+            if not series_list:
+                series_list = self.lp_queue.get_all_series()
+                self.series_list = series_list
             self.app.call_from_thread(
                 self.push_screen,
                 SeriesScreen(series_list, self.lp_queue.series),
