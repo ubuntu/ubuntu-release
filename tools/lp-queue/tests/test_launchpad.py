@@ -6,7 +6,9 @@ from unittest.mock import MagicMock, patch
 from lp_queue.launchpad import (
     LaunchpadQueue,
     QueueItem,
+    _build_authors,
     _download_source_files,
+    _extract_lp_username,
     _is_sync,
 )
 
@@ -94,7 +96,7 @@ class TestLaunchpadQueue:
         mock_upload = MagicMock()
         mock_upload.package_name = "hello"
         mock_upload.display_name = "hello"
-        mock_upload.package_version = "2.10-3"
+        mock_upload.package_version = "2.10-3ubuntu1"
         mock_upload.component_name = "main"
         mock_upload.section_name = "devel"
         mock_upload.self_link = "https://api.launchpad.net/devel/..."
@@ -102,6 +104,9 @@ class TestLaunchpadQueue:
         mock_upload.status = "Unapproved"
         mock_upload.changes_file_url = "https://example.com/changes"
         mock_upload.copy_source_archive_link = None
+        mock_upload.signing_key_owner_link = (
+            "https://api.launchpad.net/devel/~uploader"
+        )
 
         mock_series = MagicMock()
         mock_series.getPackageUploads.return_value = [mock_upload]
@@ -111,9 +116,41 @@ class TestLaunchpadQueue:
 
         assert len(items) == 1
         assert items[0].source_name == "hello"
-        assert items[0].version == "2.10-3"
+        assert items[0].version == "2.10-3ubuntu1"
         assert items[0].component == "main"
         assert items[0].status == "Unapproved"
+        assert items[0].authors == "uploader"
+
+    def test_get_queue_items_sync_author(self):
+        """Test that sync uploads extract the requestor as the author."""
+        lp = LaunchpadQueue()
+
+        mock_upload = MagicMock()
+        mock_upload.package_name = "hello"
+        mock_upload.display_name = "hello"
+        mock_upload.package_version = "2.10-3"
+        mock_upload.component_name = "main"
+        mock_upload.section_name = "devel"
+        mock_upload.self_link = "https://api.launchpad.net/devel/..."
+        mock_upload.date_created = "2025-01-01T00:00:00+00:00"
+        mock_upload.status = "Unapproved"
+        mock_upload.changes_file_url = None
+        mock_upload.copy_source_archive_link = (
+            "https://api.launchpad.net/devel/..."
+        )
+        mock_upload.package_copy_requestor_link = (
+            "https://api.launchpad.net/devel/~syncer"
+        )
+
+        mock_series = MagicMock()
+        mock_series.getPackageUploads.return_value = [mock_upload]
+        lp._series = mock_series
+
+        items = lp.get_queue_items()
+
+        assert len(items) == 1
+        assert items[0].is_sync is True
+        assert items[0].authors == "syncer"
 
     def test_accept(self):
         """Test accept delegates to the LP item."""
@@ -256,6 +293,73 @@ class TestIsSyncHelper:
     def test_missing_attribute(self):
         upload = MagicMock(spec=[])
         assert _is_sync("2.10-3", upload) is False
+
+
+class TestExtractLpUsername:
+    """Tests for the _extract_lp_username helper."""
+
+    def test_extracts_username(self):
+        link = "https://api.launchpad.net/devel/~johndoe"
+        assert _extract_lp_username(link) == "johndoe"
+
+    def test_none_returns_none(self):
+        assert _extract_lp_username(None) is None
+
+    def test_no_tilde_returns_none(self):
+        assert _extract_lp_username("https://example.com/nousername") is None
+
+    def test_empty_string_returns_none(self):
+        assert _extract_lp_username("") is None
+
+    def test_username_with_hyphen(self):
+        link = "https://api.launchpad.net/devel/~john-doe"
+        assert _extract_lp_username(link) == "john-doe"
+
+
+class TestBuildAuthors:
+    """Tests for the _build_authors helper."""
+
+    def test_sync_with_requestor(self):
+        upload = MagicMock(spec=[])
+        upload.package_copy_requestor_link = (
+            "https://api.launchpad.net/devel/~sync-requester"
+        )
+        assert _build_authors(upload, is_sync=True) == "sync-requester"
+
+    def test_sync_without_requestor(self):
+        upload = MagicMock(spec=[])
+        assert _build_authors(upload, is_sync=True) == ""
+
+    def test_regular_upload_signer_only(self):
+        upload = MagicMock(spec=[])
+        upload.signing_key_owner_link = (
+            "https://api.launchpad.net/devel/~uploader"
+        )
+        assert _build_authors(upload, is_sync=False) == "uploader"
+
+    def test_regular_upload_with_sponsor(self):
+        upload = MagicMock(spec=[])
+        upload.signing_key_owner_link = (
+            "https://api.launchpad.net/devel/~uploader"
+        )
+        upload.sponsor_link = (
+            "https://api.launchpad.net/devel/~sponsor-dev"
+        )
+        assert _build_authors(upload, is_sync=False) == "uploader, sponsor: sponsor-dev"
+
+    def test_regular_upload_signer_equals_sponsor(self):
+        upload = MagicMock(spec=[])
+        upload.signing_key_owner_link = (
+            "https://api.launchpad.net/devel/~same-person"
+        )
+        upload.sponsor_link = (
+            "https://api.launchpad.net/devel/~same-person"
+        )
+        assert _build_authors(upload, is_sync=False) == "same-person"
+
+    def test_regular_upload_no_signer(self):
+        upload = MagicMock(spec=[])
+        assert _build_authors(upload, is_sync=False) == ""
 
 
 class TestRunDebdiff:

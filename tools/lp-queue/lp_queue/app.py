@@ -370,7 +370,14 @@ class QueueApp(App[None]):
         table = self.query_one(DataTable)
         table.cursor_type = "row"
         table.add_columns(
-            "Package", "Version", "Component", "Section", "Status", "Sync", "Created"
+            "Package",
+            "Version",
+            "Component",
+            "Section",
+            "Author(s)",
+            "Status",
+            "Sync",
+            "Created",
         )
         self.lp_queue.set_log_callback(self._on_lp_log)
         self._connect_and_load()
@@ -456,6 +463,7 @@ class QueueApp(App[None]):
                 item.version,
                 item.component,
                 item.section,
+                item.authors,
                 item.status,
                 "Yes" if item.is_sync else "No",
                 item.date_created,

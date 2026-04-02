@@ -20,6 +20,7 @@ def _make_item(**overrides):
         "status": "Unapproved",
         "is_sync": False,
         "changes_file_url": None,
+        "authors": "",
         "lp_item": MagicMock(),
     }
     defaults.update(overrides)

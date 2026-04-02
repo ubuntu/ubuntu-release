@@ -34,6 +34,7 @@ class QueueItem:
     status: str
     is_sync: bool
     changes_file_url: str | None
+    authors: str = ""
     lp_item: object | None = None
 
     @property
@@ -107,6 +108,8 @@ class LaunchpadQueue:
         for upload in uploads:
             name = upload.package_name or upload.display_name
             version = upload.package_version or ""
+            is_sync = _is_sync(version, upload)
+            authors = _build_authors(upload, is_sync)
             item = QueueItem(
                 source_name=name,
                 version=version,
@@ -115,8 +118,9 @@ class LaunchpadQueue:
                 archive_url=upload.self_link,
                 date_created=str(upload.date_created),
                 status=upload.status,
-                is_sync=_is_sync(version, upload),
+                is_sync=is_sync,
                 changes_file_url=upload.changes_file_url,
+                authors=authors,
                 lp_item=upload,
             )
             items.append(item)
@@ -338,6 +342,47 @@ def _is_sync(version: str, upload: object) -> bool:
         return upload.copy_source_archive_link is not None
     except AttributeError:
         return False
+
+
+def _extract_lp_username(link: str | None) -> str | None:
+    """Extract a Launchpad username from an API person link.
+
+    Launchpad person links have the form
+    ``https://api.launchpad.net/devel/~username``.
+
+    Returns:
+        The username string, or ``None`` when *link* is ``None`` or does
+        not contain the expected ``/~`` separator.
+
+    """
+    if link and "/~" in link:
+        return link.rsplit("/~", 1)[-1]
+    return None
+
+
+def _build_authors(upload: object, is_sync: bool) -> str:
+    """Build the "Author(s)" string for a queue upload.
+
+    For syncs the requestor is shown.  For regular uploads the signer
+    (uploader) is shown, plus the sponsor when the two differ.
+
+    """
+    if is_sync:
+        requestor = _extract_lp_username(
+            getattr(upload, "package_copy_requestor_link", None),
+        )
+        return requestor or ""
+
+    signer = _extract_lp_username(
+        getattr(upload, "signing_key_owner_link", None),
+    )
+    sponsor = _extract_lp_username(
+        getattr(upload, "sponsor_link", None),
+    )
+
+    if signer and sponsor and signer != sponsor:
+        return f"{signer}, sponsor: {sponsor}"
+    return signer or ""
 
 
 def _download_source_files(urls: list[str], dest: str) -> str | None:
