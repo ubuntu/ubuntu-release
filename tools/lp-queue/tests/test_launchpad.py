@@ -8,7 +8,6 @@ from lp_queue.launchpad import (
     QueueItem,
     _download_source_files,
     _is_sync,
-    _run_debdiff,
 )
 
 # ---------------------------------------------------------------------------
@@ -32,7 +31,7 @@ class TestQueueItem:
             is_sync=False,
             changes_file_url=None,
         )
-        assert item.display_name == "hello 2.10-3"
+        assert item.display_name == "hello/2.10-3"
 
     def test_display_name_with_ubuntu_version(self):
         item = QueueItem(
@@ -46,7 +45,7 @@ class TestQueueItem:
             is_sync=False,
             changes_file_url=None,
         )
-        assert item.display_name == "bash 5.2-1ubuntu1"
+        assert item.display_name == "bash/5.2-1ubuntu1"
 
 
 # ---------------------------------------------------------------------------
@@ -260,34 +259,47 @@ class TestIsSyncHelper:
 
 
 class TestRunDebdiff:
-    """Tests for the _run_debdiff helper."""
+    """Tests for the LaunchpadQueue._run_debdiff instance method."""
 
     @patch("lp_queue.launchpad.subprocess.run")
-    def test_success(self, mock_run):
+    def test_success(self, mock_run, tmp_path):
         mock_run.return_value = MagicMock(returncode=0, stdout="diff output", stderr="")
-        assert _run_debdiff("/a.dsc", "/b.dsc") == "diff output"
+        lp = LaunchpadQueue()
+        lp.work_dir = tmp_path
+        assert lp._run_debdiff("/a.dsc", "/b.dsc") == "diff output"
 
     @patch("lp_queue.launchpad.subprocess.run")
-    def test_diff_found(self, mock_run):
+    def test_diff_found(self, mock_run, tmp_path):
         mock_run.return_value = MagicMock(returncode=1, stdout="differences", stderr="")
-        assert _run_debdiff("/a.dsc", "/b.dsc") == "differences"
+        lp = LaunchpadQueue()
+        lp.work_dir = tmp_path
+        assert lp._run_debdiff("/a.dsc", "/b.dsc") == "differences"
 
     @patch("lp_queue.launchpad.subprocess.run")
-    def test_error(self, mock_run):
+    def test_error(self, mock_run, tmp_path):
         mock_run.return_value = MagicMock(returncode=2, stdout="", stderr="error msg")
-        assert "error msg" in _run_debdiff("/a.dsc", "/b.dsc")
+        lp = LaunchpadQueue()
+        lp.work_dir = tmp_path
+        assert "error msg" in lp._run_debdiff("/a.dsc", "/b.dsc")
 
     @patch("lp_queue.launchpad.subprocess.run", side_effect=FileNotFoundError)
-    def test_not_installed(self, mock_run):
-        result = _run_debdiff("/a.dsc", "/b.dsc")
+    def test_not_installed(self, mock_run, tmp_path):
+        lp = LaunchpadQueue()
+        lp.work_dir = tmp_path
+        result = lp._run_debdiff("/a.dsc", "/b.dsc")
         assert "devscripts" in result
 
-    @patch(
-        "lp_queue.launchpad.subprocess.run",
-        side_effect=subprocess.TimeoutExpired(cmd="debdiff", timeout=120),
-    )
-    def test_timeout(self, mock_run):
-        result = _run_debdiff("/a.dsc", "/b.dsc")
+    @patch("lp_queue.launchpad.subprocess.run")
+    def test_timeout(self, mock_run, tmp_path):
+        # First call is diffoscope (succeeds), second is debdiff (times out)
+        mock_run.side_effect = [
+            MagicMock(returncode=0),  # diffoscope
+            MagicMock(returncode=0),  # xdg-open
+            subprocess.TimeoutExpired(cmd="debdiff", timeout=120),  # debdiff
+        ]
+        lp = LaunchpadQueue()
+        lp.work_dir = tmp_path
+        result = lp._run_debdiff("/a.dsc", "/b.dsc")
         assert "timed out" in result
 
 
@@ -436,11 +448,12 @@ class TestGetDebianSource:
 class TestDebdiffSyncFallback:
     """Tests for the Debian archive fallback in get_debdiff."""
 
+    @patch("lp_queue.launchpad.subprocess.run")
     @patch("lp_queue.launchpad._download_source_files")
-    @patch("lp_queue.launchpad._run_debdiff")
-    def test_sync_fallback_used(self, mock_debdiff, mock_dl_source):
-        """When LP source files are empty for a sync, Debian LP fallback is used."""
+    def test_sync_fallback_used(self, mock_dl_source, mock_subproc_run, tmp_path):
+        """When item is a sync, Debian LP fallback is used directly."""
         lp = LaunchpadQueue()
+        lp.work_dir = tmp_path
 
         mock_current = MagicMock()
         mock_current.sourceFileUrls.return_value = [
@@ -465,7 +478,6 @@ class TestDebdiffSyncFallback:
         lp._lp = mock_lp_obj
 
         mock_lp_item = MagicMock()
-        mock_lp_item.sourceFileUrls.return_value = []
         item = QueueItem(
             source_name="hello",
             version="2.10-3",
@@ -479,12 +491,11 @@ class TestDebdiffSyncFallback:
             lp_item=mock_lp_item,
         )
 
-        # First call (old Ubuntu source) returns a .dsc path, second call
-        # (new LP source, empty URLs) returns None, third call is from
+        # First call downloads old Ubuntu source, second call is from
         # _get_debian_source which internally calls _download_source_files
         # with the Debian source file URLs.
-        mock_dl_source.side_effect = ["/tmp/old.dsc", None, "/tmp/new.dsc"]
-        mock_debdiff.return_value = "diff output"
+        mock_dl_source.side_effect = ["/tmp/old.dsc", "/tmp/new.dsc"]
+        mock_subproc_run.return_value = MagicMock(returncode=0, stdout="diff output", stderr="")
 
         result = lp.get_debdiff(item)
 
@@ -495,13 +506,12 @@ class TestDebdiffSyncFallback:
             exact_match=True,
             status="Published",
         )
-        mock_debdiff.assert_called_once_with("/tmp/old.dsc", "/tmp/new.dsc")
 
     @patch("lp_queue.launchpad._download_source_files")
-    @patch("lp_queue.launchpad._run_debdiff")
-    def test_non_sync_no_fallback(self, mock_debdiff, mock_dl_source):
+    def test_non_sync_no_fallback(self, mock_dl_source, tmp_path):
         """Non-sync packages should NOT trigger the Debian fallback."""
         lp = LaunchpadQueue()
+        lp.work_dir = tmp_path
 
         mock_current = MagicMock()
         mock_current.sourceFileUrls.return_value = []
@@ -531,9 +541,10 @@ class TestDebdiffSyncFallback:
         assert "(no changes file available)" in result
 
     @patch("lp_queue.launchpad._download_source_files")
-    def test_sync_fallback_lp_throws(self, mock_dl_source):
-        """When LP sourceFileUrls() throws for a sync, Debian LP fallback is used."""
+    def test_sync_fallback_lp_throws(self, mock_dl_source, tmp_path):
+        """When Debian LP API returns no sources, falls back to changes content."""
         lp = LaunchpadQueue()
+        lp.work_dir = tmp_path
 
         mock_current = MagicMock()
         mock_current.sourceFileUrls.return_value = []
@@ -551,7 +562,6 @@ class TestDebdiffSyncFallback:
         lp._lp = mock_lp_obj
 
         mock_lp_item = MagicMock()
-        mock_lp_item.sourceFileUrls.side_effect = OSError("API error")
         item = QueueItem(
             source_name="hello",
             version="2.10-3",
