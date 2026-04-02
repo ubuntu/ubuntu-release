@@ -67,7 +67,7 @@ class ReviewScreen(ModalScreen[None]):
         """Build the review screen layout."""
         with Vertical():
             yield Label(f"Review: {self.item.display_name}", classes="review-title")
-            yield RichLog(highlight=True, markup=False)
+            yield RichLog(highlight=True, markup=False, auto_scroll=False)
 
     def on_mount(self) -> None:
         """Load the debdiff content into the log widget."""
