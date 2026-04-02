@@ -12,7 +12,11 @@ A small standalone TUI tool for working with the Ubuntu Launchpad upload queue.
 ## Installation
 
 ```bash
-cd tools/lp-queue
+sudo apt install python3-launchpadlib python3-textual
+ln -s "$(realpath lp-queue)" ~/.local/bin/lp-queue
+```
+or
+```bash
 pip install .
 ```
 
