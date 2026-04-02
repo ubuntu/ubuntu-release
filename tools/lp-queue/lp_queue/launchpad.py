@@ -260,7 +260,7 @@ class LaunchpadQueue:
     def _ensure_debian_archive(self) -> None:
         """Lazily initialise the Debian archive reference via Launchpad."""
         if self._debian_archive is None:
-            self._log("distributions['debian'].main_archive")
+            self._log("Initializing Debian archive reference")
             debian = self._lp.distributions["debian"]
             self._debian_archive = debian.main_archive
 

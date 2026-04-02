@@ -479,8 +479,10 @@ class TestDebdiffSyncFallback:
             lp_item=mock_lp_item,
         )
 
-        # First call (old) returns a .dsc path, second call (new, empty) returns None,
-        # third call (Debian fallback) returns the new .dsc path.
+        # First call (old Ubuntu source) returns a .dsc path, second call
+        # (new LP source, empty URLs) returns None, third call is from
+        # _get_debian_source which internally calls _download_source_files
+        # with the Debian source file URLs.
         mock_dl_source.side_effect = ["/tmp/old.dsc", None, "/tmp/new.dsc"]
         mock_debdiff.return_value = "diff output"
 
