@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import tempfile
+import urllib.error
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -161,7 +162,8 @@ class LaunchpadQueue:
             # Try LP source files first; silently fall back for syncs.
             try:
                 new_dsc = _download_source_files(item.lp_item.sourceFileUrls(), tmpdir)
-            except Exception:
+            except (OSError, urllib.error.URLError):
+                logger.debug("LP source files unavailable for %s", item.display_name)
                 new_dsc = None
 
             # Fallback for synced packages: fetch from the Debian archive.
@@ -370,7 +372,7 @@ def _download_debian_source(source_name: str, version: str, dest: str) -> str | 
         try:
             dsc_path = Path(dest) / dsc_filename
             urllib.request.urlretrieve(dsc_url, dsc_path)  # noqa: S310
-        except Exception:
+        except (OSError, urllib.error.URLError):
             continue
 
         # .dsc found in this component – download the referenced files.
@@ -380,7 +382,7 @@ def _download_debian_source(source_name: str, version: str, dest: str) -> str | 
                 file_url = f"{base_url}/{filename}"
                 filepath = Path(dest) / filename
                 urllib.request.urlretrieve(file_url, filepath)  # noqa: S310
-        except Exception:
+        except (OSError, urllib.error.URLError):
             logger.exception("Failed to download Debian source files")
             return None
 

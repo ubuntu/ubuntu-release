@@ -437,7 +437,7 @@ class TestDownloadDebianSource:
         def fake_urlretrieve(url, filepath):
             calls.append(url)
             if "/main/" in url:
-                raise Exception("404")
+                raise OSError("404")
             if filepath.name.endswith(".dsc"):
                 filepath.write_text(dsc_content)
 
@@ -449,7 +449,7 @@ class TestDownloadDebianSource:
         assert any("/main/" in c for c in calls)
         assert any("/contrib/" in c for c in calls)
 
-    @patch("lp_queue.launchpad.urllib.request.urlretrieve", side_effect=Exception("404"))
+    @patch("lp_queue.launchpad.urllib.request.urlretrieve", side_effect=OSError("404"))
     def test_all_components_fail(self, mock_urlretrieve, tmp_path):
         result = _download_debian_source("hello", "2.10-3", str(tmp_path))
         assert result is None
@@ -561,7 +561,7 @@ class TestDebdiffSyncFallback:
         lp._series = MagicMock()
 
         mock_lp_item = MagicMock()
-        mock_lp_item.sourceFileUrls.side_effect = Exception("API error")
+        mock_lp_item.sourceFileUrls.side_effect = OSError("API error")
         item = QueueItem(
             source_name="hello",
             version="2.10-3",
