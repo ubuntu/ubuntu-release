@@ -13,6 +13,7 @@ A small standalone TUI tool for working with the Ubuntu Launchpad upload queue.
 
 ```bash
 sudo apt install python3-launchpadlib python3-textual
+sudo apt install --no-install-recommends diffoscope-minimal
 ln -s "$(realpath lp-queue)" ~/.local/bin/lp-queue
 ```
 or
