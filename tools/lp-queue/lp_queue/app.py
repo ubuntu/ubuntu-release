@@ -365,10 +365,6 @@ class QueueApp(App[None]):
     ]
 
     DEFAULT_CSS = """
-    DataTable {
-        height: 1fr;
-    }
-
     #debug-panel {
         height: 12;
         border-top: thick $accent;
@@ -427,7 +423,8 @@ class QueueApp(App[None]):
     def compose(self) -> ComposeResult:
         """Build the main application layout."""
         yield Header()
-        yield DataTable()
+        with Vertical(id="main-view"):
+            yield DataTable()
         with Vertical(id="debug-panel"):
             yield Label("Launchpad Debug Log", classes="debug-title")
             yield RichLog(id="debug-log", highlight=True, markup=False)
