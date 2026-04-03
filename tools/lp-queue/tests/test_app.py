@@ -4,8 +4,15 @@ from unittest.mock import MagicMock
 
 from textual.widgets import DataTable, OptionList, RichLog
 
-from lp_queue.app import ConfirmScreen, QueueApp, RejectScreen, ReviewScreen, SeriesScreen
-from lp_queue.launchpad import LaunchpadQueue, QueueItem
+from lp_queue.app import (
+    ConfirmScreen,
+    QueueApp,
+    QueueStatusScreen,
+    RejectScreen,
+    ReviewScreen,
+    SeriesScreen,
+)
+from lp_queue.launchpad import QUEUE_STATUS_UNAPPROVED, LaunchpadQueue, QueueItem
 
 
 def _make_item(**overrides):
@@ -389,3 +396,88 @@ class TestSeriesScreen:
 
         async with app.run_test(size=(120, 30)) as _pilot:
             app._handle_series_result("resolute")
+
+
+class TestQueueStatusScreen:
+    """Tests for the QueueStatusScreen modal."""
+
+    async def test_queue_status_screen_displays_options(self):
+        """Test that QueueStatusScreen renders all queue statuses."""
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            screen = QueueStatusScreen("Unapproved")
+            app.push_screen(screen)
+            await _pilot.pause()
+            assert app.screen is screen
+            option_list = screen.query_one(OptionList)
+            assert option_list.option_count == 5
+
+    async def test_queue_status_screen_dismiss_on_escape(self):
+        """Test that pressing escape cancels the queue status screen."""
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            results = []
+            screen = QueueStatusScreen("Unapproved")
+            app.push_screen(screen, results.append)
+            await _pilot.pause()
+            assert app.screen is screen
+            await _pilot.press("escape")
+            await _pilot.pause()
+            assert app.screen is not screen
+            assert results == [None]
+
+    async def test_queue_status_screen_current_marker(self):
+        """Test that the current queue status is marked with a marker character."""
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            screen = QueueStatusScreen("Unapproved")
+            app.push_screen(screen)
+            await _pilot.pause()
+            option_list = screen.query_one(OptionList)
+            # The second option (index 1) should be Unapproved with the marker
+            unapproved_option = option_list.get_option_at_index(1)
+            assert "✦" in str(unapproved_option.prompt)
+            # The first option (index 0) should be New without the marker
+            new_option = option_list.get_option_at_index(0)
+            assert "✦" not in str(new_option.prompt)
+
+    async def test_default_queue_status_is_unapproved(self):
+        """Test that the default queue status is Unapproved."""
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            assert app.queue_status == QUEUE_STATUS_UNAPPROVED
+
+    async def test_handle_queue_status_result_cancel(self):
+        """Test that None result from queue status screen sets cancel status."""
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            app._handle_queue_status_result(None)
+            assert app.queue_status == QUEUE_STATUS_UNAPPROVED
+
+    async def test_handle_queue_status_result_same_status(self):
+        """Test that selecting the same status shows 'already showing' message."""
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            app._handle_queue_status_result("Unapproved")
+            assert app.queue_status == QUEUE_STATUS_UNAPPROVED
+
+    async def test_handle_queue_status_result_changes_status(self):
+        """Test that selecting a different status updates queue_status."""
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            app._handle_queue_status_result("New")
+            assert app.queue_status == "New"

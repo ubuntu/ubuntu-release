@@ -20,7 +20,12 @@ from textual.widgets import (
 )
 from textual.widgets.option_list import Option
 
-from lp_queue.launchpad import LaunchpadQueue, QueueItem
+from lp_queue.launchpad import (
+    QUEUE_STATUS_UNAPPROVED,
+    QUEUE_STATUSES,
+    LaunchpadQueue,
+    QueueItem,
+)
 
 
 class ReviewScreen(ModalScreen[None]):
@@ -281,6 +286,68 @@ class SeriesScreen(ModalScreen[str | None]):
         self.dismiss(None)
 
 
+class QueueStatusScreen(ModalScreen[str | None]):
+    """Modal screen to select a queue status filter."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+    ]
+
+    DEFAULT_CSS = """
+    QueueStatusScreen {
+        align: center middle;
+    }
+
+    QueueStatusScreen > Vertical {
+        width: 50%;
+        height: 70%;
+        border: thick $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+
+    QueueStatusScreen .status-title {
+        text-style: bold;
+        padding: 1;
+        background: $accent;
+        color: $text;
+        width: 100%;
+    }
+
+    QueueStatusScreen OptionList {
+        height: 1fr;
+        margin: 1 0;
+    }
+    """
+
+    def __init__(self, current_status: str) -> None:
+        super().__init__()
+        self._current_status = current_status
+
+    def compose(self) -> ComposeResult:
+        """Build the queue status selection screen."""
+        with Vertical():
+            yield Label("Switch Queue Status", classes="status-title")
+            yield OptionList(*self._build_options())
+
+    def _build_options(self) -> list[Option]:
+        """Build OptionList entries from the queue status list."""
+        options: list[Option] = []
+        for status in QUEUE_STATUSES:
+            marker = " ✦ " if status == self._current_status else "   "
+            options.append(Option(f"{marker} {status}", id=status))
+        return options
+
+    @on(OptionList.OptionSelected)
+    def on_option_selected(self, event: OptionList.OptionSelected) -> None:
+        """Handle queue status selection."""
+        self.dismiss(event.option.id)
+
+    def action_cancel(self) -> None:
+        """Cancel queue status selection."""
+        self.dismiss(None)
+
+
 class QueueApp(App[None]):
     """TUI application for managing the Ubuntu upload queue."""
 
@@ -291,6 +358,7 @@ class QueueApp(App[None]):
         Binding("a", "accept", "Accept"),
         Binding("j", "reject", "Reject"),
         Binding("f2", "switch_series", "Series"),
+        Binding("f3", "switch_queue_status", "Queue"),
         Binding("f5", "refresh", "Refresh"),
         Binding("tilde", "toggle_debug", "Debug log"),
         Binding("q", "quit", "Quit"),
@@ -352,6 +420,7 @@ class QueueApp(App[None]):
         super().__init__()
         self.lp_queue = lp_queue or LaunchpadQueue()
         self.queue_items: list[QueueItem] = []
+        self.queue_status: str = QUEUE_STATUS_UNAPPROVED
         self.username = ""
         self._pending_reject_comment = ""
 
@@ -405,6 +474,7 @@ class QueueApp(App[None]):
             message: The status text to display.
             state: Visual state — ``"busy"``, ``"error"``, ``"success"``, or
                 ``""`` for the default/idle look.
+
         """
         try:
             bar = self.query_one("#status-bar", Label)
@@ -438,7 +508,7 @@ class QueueApp(App[None]):
             self.app.call_from_thread(self._set_status, "⏳ Getting user name…", "busy")
             self.app.call_from_thread(self._set_username, self.lp_queue.lp_user_name())
             self.app.call_from_thread(self._set_status, "⏳ Loading queue items…", "busy")
-            self.queue_items = self.lp_queue.get_queue_items()
+            self.queue_items = self.lp_queue.get_queue_items(self.queue_status)
             self.app.call_from_thread(self._populate_table)
         except Exception as exc:
             self.app.call_from_thread(self._set_status, f"❌ Error: {exc}", "error")
@@ -448,7 +518,7 @@ class QueueApp(App[None]):
         """Refresh queue items from Launchpad (runs in a worker thread)."""
         try:
             self.app.call_from_thread(self._set_status, "⏳ Refreshing queue…", "busy")
-            self.queue_items = self.lp_queue.get_queue_items()
+            self.queue_items = self.lp_queue.get_queue_items(self.queue_status)
             self.app.call_from_thread(self._populate_table)
         except Exception as exc:
             self.app.call_from_thread(self._set_status, f"❌ Error: {exc}", "error")
@@ -514,10 +584,28 @@ class QueueApp(App[None]):
         )
         try:
             self.lp_queue.switch_series(series_name)
-            self.queue_items = self.lp_queue.get_queue_items()
+            self.queue_items = self.lp_queue.get_queue_items(self.queue_status)
             self.app.call_from_thread(self._populate_table)
         except Exception as exc:
             self.app.call_from_thread(self._set_status, f"❌ Error: {exc}", "error")
+
+    def action_switch_queue_status(self) -> None:
+        """Open the queue status selection screen."""
+        self.push_screen(
+            QueueStatusScreen(self.queue_status),
+            self._handle_queue_status_result,
+        )
+
+    def _handle_queue_status_result(self, status: str | None) -> None:
+        """Process the result from the queue status selection screen."""
+        if status is None:
+            self._set_status("Queue status switch cancelled")
+            return
+        if status == self.queue_status:
+            self._set_status(f"Already showing {status}")
+            return
+        self.queue_status = status
+        self._load_queue()
 
     def action_review(self) -> None:
         """Review the selected queue item by showing its debdiff."""
@@ -577,7 +665,7 @@ class QueueApp(App[None]):
             self.app.call_from_thread(
                 self._set_status, f"✔ Accepted {item.display_name}", "success"
             )
-            self.queue_items = self.lp_queue.get_queue_items()
+            self.queue_items = self.lp_queue.get_queue_items(self.queue_status)
             self.app.call_from_thread(self._populate_table)
         except Exception as exc:
             self.app.call_from_thread(self._set_status, f"❌ Error: {exc}", "error")
@@ -629,7 +717,7 @@ class QueueApp(App[None]):
             self.app.call_from_thread(
                 self._set_status, f"✔ Rejected {item.display_name}", "success"
             )
-            self.queue_items = self.lp_queue.get_queue_items()
+            self.queue_items = self.lp_queue.get_queue_items(self.queue_status)
             self.app.call_from_thread(self._populate_table)
         except Exception as exc:
             self.app.call_from_thread(self._set_status, f"❌ Error: {exc}", "error")

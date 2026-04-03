@@ -20,6 +20,15 @@ QUEUE_STATUS_ACCEPTED = "Accepted"
 QUEUE_STATUS_DONE = "Done"
 QUEUE_STATUS_REJECTED = "Rejected"
 
+# All queue statuses in display order.
+QUEUE_STATUSES = [
+    QUEUE_STATUS_NEW,
+    QUEUE_STATUS_UNAPPROVED,
+    QUEUE_STATUS_ACCEPTED,
+    QUEUE_STATUS_DONE,
+    QUEUE_STATUS_REJECTED,
+]
+
 
 @dataclass
 class QueueItem:
