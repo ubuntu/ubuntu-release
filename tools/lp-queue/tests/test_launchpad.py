@@ -103,10 +103,8 @@ class TestLaunchpadQueue:
         mock_upload.date_created = "2025-01-01T00:00:00+00:00"
         mock_upload.status = "Unapproved"
         mock_upload.changes_file_url = "https://example.com/changes"
-        mock_upload.copy_source_archive_link = None
-        mock_upload.signing_key_owner_link = (
-            "https://api.launchpad.net/devel/~uploader"
-        )
+        mock_upload.contains_copy = False
+        mock_upload.signing_key_owner_link = "https://api.launchpad.net/devel/~uploader"
 
         mock_series = MagicMock()
         mock_series.getPackageUploads.return_value = [mock_upload]
@@ -135,12 +133,8 @@ class TestLaunchpadQueue:
         mock_upload.date_created = "2025-01-01T00:00:00+00:00"
         mock_upload.status = "Unapproved"
         mock_upload.changes_file_url = None
-        mock_upload.copy_source_archive_link = (
-            "https://api.launchpad.net/devel/..."
-        )
-        mock_upload.package_copy_requestor_link = (
-            "https://api.launchpad.net/devel/~syncer"
-        )
+        mock_upload.contains_copy = True
+        mock_upload.package_copy_requestor_link = "https://api.launchpad.net/devel/~syncer"
 
         mock_series = MagicMock()
         mock_series.getPackageUploads.return_value = [mock_upload]
@@ -275,24 +269,15 @@ class TestLaunchpadQueue:
 class TestIsSyncHelper:
     """Tests for the _is_sync helper."""
 
+    def test_ubuntu_version_sync(self):
+        upload = MagicMock()
+        upload.contains_copy = True
+        assert _is_sync(upload) is True
+
     def test_ubuntu_version_not_sync(self):
         upload = MagicMock()
-        upload.copy_source_archive_link = None
-        assert _is_sync("2.10-3ubuntu1", upload) is False
-
-    def test_debian_version_with_copy_archive(self):
-        upload = MagicMock()
-        upload.copy_source_archive_link = "https://api.launchpad.net/..."
-        assert _is_sync("2.10-3", upload) is True
-
-    def test_debian_version_no_copy_archive(self):
-        upload = MagicMock()
-        upload.copy_source_archive_link = None
-        assert _is_sync("2.10-3", upload) is False
-
-    def test_missing_attribute(self):
-        upload = MagicMock(spec=[])
-        assert _is_sync("2.10-3", upload) is False
+        upload.contains_copy = False
+        assert _is_sync(upload) is False
 
 
 class TestExtractLpUsername:

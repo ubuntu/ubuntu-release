@@ -117,7 +117,7 @@ class LaunchpadQueue:
         for upload in uploads:
             name = upload.package_name or upload.display_name
             version = upload.package_version or ""
-            is_sync = _is_sync(version, upload)
+            is_sync = _is_sync(upload)
             authors = _build_authors(upload, is_sync)
             item = QueueItem(
                 source_name=name,
@@ -339,18 +339,9 @@ class LaunchpadQueue:
         return _download_source_files(urls, dest)
 
 
-def _is_sync(version: str, upload: object) -> bool:
-    """Heuristic to detect whether an upload is a sync from Debian.
-
-    Synced packages typically lack an ``ubuntuN`` version suffix and may
-    have a ``copy_source_archive`` set on the upload.
-    """
-    if "ubuntu" in version:
-        return False
-    try:
-        return upload.copy_source_archive_link is not None
-    except AttributeError:
-        return False
+def _is_sync(upload: object) -> bool:
+    """Detect whether an upload is a sync from Debian."""
+    return upload.contains_copy
 
 
 def _extract_lp_username(link: str | None) -> str | None:
