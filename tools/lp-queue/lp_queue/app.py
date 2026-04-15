@@ -353,6 +353,8 @@ class QueueApp(App[None]):
 
     TITLE = "Ubuntu Upload Queue"
 
+    AUTO_REFRESH_SECONDS = 300  # 5 minutes
+
     BINDINGS = [
         Binding("r", "review", "Review"),
         Binding("a", "accept", "Accept"),
@@ -430,8 +432,6 @@ class QueueApp(App[None]):
             yield RichLog(id="debug-log", highlight=True, markup=False)
         yield Label("⏳ Connecting to Launchpad…", id="status-bar", classes="busy")
         yield Footer()
-
-    AUTO_REFRESH_SECONDS = 300  # 5 minutes
 
     def on_mount(self) -> None:
         """Set up the data table and load queue items."""
