@@ -481,3 +481,76 @@ class TestQueueStatusScreen:
         async with app.run_test(size=(120, 30)) as _pilot:
             app._handle_queue_status_result("New")
             assert app.queue_status == "New"
+
+
+class TestAutoRefresh:
+    """Tests for the automatic queue refresh timer."""
+
+    async def test_periodic_refresh_calls_load_queue_on_main_screen(self):
+        """Test that _periodic_refresh triggers _load_queue when on the main screen."""
+        from unittest.mock import patch
+
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            with patch.object(app, "_load_queue") as mock_load:
+                app._periodic_refresh()
+                mock_load.assert_called_once()
+
+    async def test_periodic_refresh_skips_when_modal_open(self):
+        """Test that _periodic_refresh does not refresh when a modal screen is open."""
+        from unittest.mock import patch
+
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            screen = ConfirmScreen("Title", "Message")
+            app.push_screen(screen)
+            await _pilot.pause()
+            with patch.object(app, "_load_queue") as mock_load:
+                app._periodic_refresh()
+                mock_load.assert_not_called()
+
+    async def test_periodic_refresh_skips_when_review_screen_open(self):
+        """Test that _periodic_refresh does not refresh when ReviewScreen is open."""
+        from unittest.mock import patch
+
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            item = _make_item()
+            screen = ReviewScreen(item, "--- diff content ---")
+            app.push_screen(screen)
+            await _pilot.pause()
+            with patch.object(app, "_load_queue") as mock_load:
+                app._periodic_refresh()
+                mock_load.assert_not_called()
+
+    async def test_periodic_refresh_resumes_after_modal_dismissed(self):
+        """Test that _periodic_refresh works again after a modal is dismissed."""
+        from unittest.mock import patch
+
+        lp = LaunchpadQueue()
+        app = QueueApp(lp_queue=lp)
+
+        async with app.run_test(size=(120, 30)) as _pilot:
+            screen = ConfirmScreen("Title", "Message")
+            app.push_screen(screen)
+            await _pilot.pause()
+
+            # Should not refresh while modal is open
+            with patch.object(app, "_load_queue") as mock_load:
+                app._periodic_refresh()
+                mock_load.assert_not_called()
+
+            # Dismiss the modal
+            await _pilot.press("escape")
+            await _pilot.pause()
+
+            # Should refresh now that we're back to the main screen
+            with patch.object(app, "_load_queue") as mock_load:
+                app._periodic_refresh()
+                mock_load.assert_called_once()

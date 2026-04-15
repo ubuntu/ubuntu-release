@@ -431,6 +431,8 @@ class QueueApp(App[None]):
         yield Label("⏳ Connecting to Launchpad…", id="status-bar", classes="busy")
         yield Footer()
 
+    AUTO_REFRESH_SECONDS = 300  # 5 minutes
+
     def on_mount(self) -> None:
         """Set up the data table and load queue items."""
         table = self.query_one(DataTable)
@@ -447,6 +449,12 @@ class QueueApp(App[None]):
         )
         self.lp_queue.set_log_callback(self._on_lp_log)
         self._connect_and_load()
+        self.set_interval(self.AUTO_REFRESH_SECONDS, self._periodic_refresh)
+
+    def _periodic_refresh(self) -> None:
+        """Refresh the queue automatically if no modal screen is open."""
+        if len(self.screen_stack) == 1:
+            self._load_queue()
 
     def _on_lp_log(self, message: str) -> None:
         """Receive a log message from LaunchpadQueue and write it to the debug panel."""
