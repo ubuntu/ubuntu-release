@@ -1,187 +1,202 @@
 #!/usr/bin/python3
+# -*- coding: utf-8 -*-
 
+# Copyright (C) 2026, Skia <skia@ubuntu.com>
+# Copyright (C) 2026, Utkarsh Gupta <utkarsh@ubuntu.com>
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; version 3 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Look at Test Observer for currently approved builds, and generate
+# publish-release commands for them.
+
+from collections import defaultdict
 import argparse
+import re
+import sys
+
 import requests
 
+milestone_name_re = re.compile(r'(Beta|Final|Snapshot)(?: (\d))?', re.I)
 
-def slugify(string):
-    return string.lower().replace(" ", "-")
+type_map = {
+    'desktop':              'daily-live',
+    'dvd':                  'dvd',
+    'server':               'daily',
+    'base':                 'daily',
+    'wsl':                  'daily-live',
+    'preinstalled-desktop': 'daily-preinstalled',
+    'preinstalled-server':  'ubuntu-server/daily-preinstalled',
+    'live-server':          'ubuntu-server/daily-live',
+    'mini-iso':             'daily-live',
+    'minimal':              'daily-minimal',
+}
+
+PRIMARY_ARCHES = {'amd64', 'i386'}
+OFFICIAL_TYPES = {'desktop', 'live-server', 'wsl'}
 
 
-def str_image(image):
-    return f"{image['os']: <25} {image['arch']: <14} {image['name']: <50} {image['version']: <12}"
-
-
-def is_official(os):
-    if os in ["ubuntu-desktop", "ubuntu-server", "ubuntu-wsl"]:
-        return True
-    return False
-
-
-def get_artifacts(series, pre_publish):
-    """
-    Yields all 'Approved' artifacts for a given release using the
-    Ubuntu Test Observer API.
-
-    :param release_name: The Ubuntu release codename (e.g., 'noble', 'jammy')
-    """
-    base_url = "https://tests-api.ubuntu.com"
-    params = {
-        "family": "image",
-    }
-
+def get_artifacts(series, base_url):
+    params = {"family": "image"}
     response = requests.get(base_url + "/v1/artefacts", params=params)
     response.raise_for_status()
-
-    artifacts = [a for a in response.json() if a["release"] == series]
-    if pre_publish:
-        artifacts = [a for a in artifacts if is_official(a["os"])]
-    print(f"Found {len(artifacts)} artifacts")
-    artifacts = [a for a in artifacts if a["status"] == "APPROVED"]
-    print(f"Found {len(artifacts)} approved artifacts")
-    for artifact in artifacts:
-        response = requests.get(base_url + f"/v1/artefacts/{artifact['id']}/builds")
-        response.raise_for_status()
-        build = response.json()[0]
-        image = {
-            "name": artifact["name"],
-            "os": artifact["os"],
-            "version": artifact["version"],
-            "arch": build["architecture"].split(".")[0],  # fixup old cdimage bug
-        }
-        yield image
+    artifacts = [a for a in response.json()
+                 if a["release"] == series and a["status"] == "APPROVED"]
+    sys.stderr.write("Found %d approved artifacts\n" % len(artifacts))
+    return artifacts
 
 
-def get_type(image):
-    os = image["os"]
-    dir = image["dir"]
-
-    if os == "ubuntu-base":
-        return "base"
-    if os == "ubuntu-mini-iso":
-        return "mini-iso"
-    if os == "ubuntu-wsl":
-        return "wsl"
-    if os == "ubuntu-server":
-        if "daily-preinstalled" in dir:
-            return "preinstalled-server"
-        if "daily-live" in dir:
-            return "live-server"
-    if os in ["ubuntu-desktop", "edubuntu"]:
-        if dir == "daily-preinstalled":
-            return "preinstalled-desktop"
-    if os == "xubuntu":
-        if dir == "daily-minimal":
-            return "minimal"
-
-    return "desktop"
+def get_arch(artifact, base_url):
+    response = requests.get(base_url + "/v1/artefacts/%d/builds" % artifact["id"])
+    response.raise_for_status()
+    builds = response.json()
+    if not builds:
+        return None
+    return builds[0]["architecture"].split(".")[0]
 
 
-def get_dir(image):
-    os = image["os"]
-    name = image["name"]
+def derive_image_metadata(artifact):
+    os = artifact["os"]
+    name = artifact["name"]
 
-    dir = "daily-live"
-    if os == "ubuntu-base":
-        dir = "daily"
-    if name.startswith("dangerous"):
-        dir = "daily-dangerous"
-    if "minimal" in name:
-        dir = "daily-minimal"
     if "preinstalled" in name:
-        dir = "daily-preinstalled"
-    if os in ["ubuntu-server", "ubuntu-wsl"]:
-        dir = f"{os}/{dir}"
-    return dir
+        img_type = "preinstalled-server" if os == "ubuntu-server" else "preinstalled-desktop"
+    elif os == "ubuntu-server":
+        img_type = "live-server" if "live" in name else "server"
+    elif os == "ubuntu-base":
+        img_type = "base"
+    elif os == "ubuntu-mini-iso":
+        img_type = "mini-iso"
+    elif os == "ubuntu-wsl":
+        img_type = "wsl"
+    elif "minimal" in name:
+        img_type = "minimal"
+    else:
+        img_type = "desktop"
+
+    if img_type not in type_map:
+        sys.stderr.write("ERROR: Cannot handle type %s for %s\n" % (img_type, os))
+        return None
+
+    project = "ubuntu" if os in ("ubuntu-desktop", "ubuntu-server", "ubuntu-wsl") else os
+    return project, img_type
 
 
-def get_project(image):
-    os = image["os"]
-    if os in ["ubuntu-desktop", "ubuntu-server", "ubuntu-wsl"]:
-        return "ubuntu"
-    return os
+def parse_milestone(milestone_str):
+    m = milestone_name_re.search(milestone_str)
+    if not m:
+        sys.stderr.write(
+            "ERROR: Milestone '%s' isn't a valid target for publishing.\n" % milestone_str)
+        sys.exit(1)
+    kind = m.group(1).capitalize()
+    num = m.group(2)
+    name = kind if not num else "%s %s" % (kind, num)
+    code = name.lower().replace(' ', '-')
+    return name, code
 
 
-def get_official(image, milestone, pre_publish):
-    os = image["os"]
+def do_publish_release(opts, project, img_type, buildstamp, arches, milestone_code, stable):
+    primary_arches = arches & PRIMARY_ARCHES
+    ports_arches = arches - PRIMARY_ARCHES
 
-    if "snapshot" in milestone.lower():
-        return "named"
-    if is_official(os):
-        if pre_publish:
-            return "poolonly"
-        else:
-            return "yes"
-    return "no"
+    if 'snapshot' in milestone_code:
+        official = 'named'
+    elif project == 'ubuntu' and img_type in OFFICIAL_TYPES and primary_arches:
+        official = 'yes'
+    else:
+        official = 'named'
 
+    if opts.prepublish:
+        if official == 'named':
+            return
+        official = 'poolonly'
 
-def render_publishing_script(milestone, images):
-    milestone_slug = slugify(milestone)
+    # split primary from ports for official/poolonly
+    if official in ('yes', 'poolonly') and primary_arches and ports_arches:
+        do_publish_release(opts, project, img_type, buildstamp,
+                           primary_arches, milestone_code, stable)
+        do_publish_release(opts, project, img_type, buildstamp,
+                           ports_arches, milestone_code, stable)
+        return
 
-    print("""
-## make backup:
-cd ~/cdimage/; rm -rf www.prev; cp -al www www.prev; cd www
-""")
+    dir = type_map[img_type]
+    if project == 'ubuntu' and img_type == 'wsl':
+        dir = 'ubuntu-wsl/%s' % dir
 
-    for image in images:
-        print(f"\n# {str_image(image)}")
-        print(
-            f"ARCHES='{image['arch']}' for-project {image['project']} "
-            f"publish-release {image['dir']} {image['version']} {image['type']} {image['official']} {milestone_slug}"
-        )
+    cmd = ['for-project', project, 'publish-release', dir, buildstamp, img_type, official]
+    if milestone_code != 'final':
+        cmd.append(milestone_code)
 
-    print(f"""
-## fix name in headers:
-find full -path '*/{milestone_slug}*HEADER.html' | xargs sed -i 's/Daily Build/{milestone}/'
+    prefix = ["ARCHES='%s'" % ' '.join(sorted(arches))]
+    if stable is not None:
+        prefix.insert(0, "DIST=%s" % stable)
 
-## check changes against www.prev:
-diff -u <(cd ../www.prev/full && find | sort) <(cd full && find | sort) | less
-""")
-
-
-def parse_args():
-    args = argparse.ArgumentParser()
-    args.add_argument(
-        "--series",
-        "-s",
-        type=str,
-        required=True,
-        help="The series to release (e.g. 'noble', 'resolute'...)",
-    )
-    args.add_argument(
-        "--milestone",
-        "-m",
-        type=str,
-        required=True,
-        help="The milestone to release (e.g. 'Final', 'Snapshot 1'...)",
-    )
-    args.add_argument(
-        "--pre-publish",
-        action="store_true",
-        help="Whether to pre-publish or do a full release",
-    )
-
-    return args.parse_args()
+    print(' '.join(prefix + cmd))
 
 
 def main():
-    args = parse_args()
-    print(f"Fetching approved artifacts for {args.series}...")
+    parser = argparse.ArgumentParser(
+        description='Generate publish-release commands from Test Observer')
+    parser.add_argument('-s', '--series', required=True,
+                        help="Release series codename (e.g. 'resolute')")
+    parser.add_argument('-m', '--milestone', required=True,
+                        help="Milestone name (e.g. 'Beta', 'Final')")
+    parser.add_argument('-p', '--prepublish', action='store_true', default=False,
+                        help='Pre-publish images to .pool')
+    parser.add_argument('--stable',
+                        help="Stable codename for point releases (e.g. 'jammy')")
+    parser.add_argument('--api-url', default='https://tests-api.ubuntu.com',
+                        help='Test Observer API base URL')
+    opts = parser.parse_args()
 
-    images = list(get_artifacts(args.series, args.pre_publish))
-    images.sort(key=lambda a: a["os"])
-    print(" Summary of images to be released ".center(120, "="))
-    for image in images:
-        image["dir"] = get_dir(image)
-        image["type"] = get_type(image)
-        image["project"] = get_project(image)
-        image["official"] = get_official(image, args.milestone, args.pre_publish)
-        print(str_image(image))
-    print("=" * 120)
-    print(" Publishing script ".center(120, "="))
-    render_publishing_script(args.milestone, images)
-    print(" End of script ".center(120, "="))
+    milestone_name, milestone_code = parse_milestone(opts.milestone)
+
+    sys.stderr.write("Fetching approved artifacts for %s / %s...\n"
+                     % (opts.series, milestone_name))
+
+    artifacts = get_artifacts(opts.series, opts.api_url)
+
+    build_map = defaultdict(lambda: defaultdict(lambda: defaultdict(set)))
+    for artifact in artifacts:
+        arch = get_arch(artifact, opts.api_url)
+        if arch is None:
+            sys.stderr.write("Warning: no builds for artifact %d (%s), skipping\n"
+                             % (artifact["id"], artifact["name"]))
+            continue
+        result = derive_image_metadata(artifact)
+        if result is None:
+            continue
+        project, img_type = result
+        build_map[project][img_type][artifact["version"]].add(arch)
+
+    print('\n## make backup:')
+    print('cd ~/cdimage/; rm -rf www.prev; cp -al www www.prev; cd www')
+
+    print('\n## publish images:')
+    for project, builds in sorted(build_map.items()):
+        for img_type, buildstamps in sorted(builds.items()):
+            for buildstamp, arches in sorted(buildstamps.items()):
+                do_publish_release(opts, project, img_type, buildstamp, arches,
+                                   milestone_code, opts.stable)
+        print()
+
+    if not opts.prepublish:
+        print('\n## fix name in headers:')
+        print("find full -path '*/%s*HEADER.html' | xargs sed -i 's/Daily Build/%s/'"
+              % (milestone_code, milestone_name))
+
+    print('\n## check changes against www.prev:')
+    print('diff -u <(cd ../www.prev/full && find | sort) <(cd full && find | sort) | less')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
