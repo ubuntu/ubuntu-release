@@ -13,14 +13,26 @@
 # See git history to read the problems this script had.
 # The most pressing issues have been fixed and the script can be used to populate the YAML.
 # This script doesn't do anything else than printing information, so it's fairly safe to use.
+#
+# The tree is now /<product>/<series>/<type>/<serial>: cdimage ADT-1907
+# (bdf842cb, "nest devel-series daily images under <series>/ for every
+# project") moved the development series into a per-series subdirectory too,
+# so every product looks like the already-released ones. Pass the series to
+# scan as the first argument, e.g. `./fetch-serials.py resolute`.
+
+import argparse
+import re
+import sys
 
 import requests
 from bs4 import BeautifulSoup
-import re
 
 # Configuration
 BASE_URL = "https://cdimage.ubuntu.com"
 ALLOWED_TYPES = {"daily", "daily-live", "daily-preinstalled", "daily-minimal"}
+# Directories at the root that are not products (or that have their own
+# channel-based layout, like ubuntu-core) and so have no <series>/<type>/ tree.
+SKIP_PRODUCTS = {"include", "netboot", "releases", "streams", "experimental"}
 
 
 def get_links(url):
@@ -68,55 +80,86 @@ def parse_serial(serial_str):
     return None
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "series",
+        help="series to scan, e.g. 'resolute' or 'stonking'",
+    )
+    return parser.parse_args()
+
+
 def main():
-    print(f"Browsing {BASE_URL} for latest serials...\n")
+    args = parse_args()
+    series = args.series
+
+    print(f"Browsing {BASE_URL} for latest {series} serials...\n")
     print(f"{'Product':<25} | {'Type':<20} | {'Latest Serial':<12} | {'URL'}")
     print("-" * 100)
+
+    found = False
 
     # Step 1: Browse root to find all products
     products = get_links(BASE_URL + "/")
 
     for product in products:
         # Skip common non-product directories to save time/errors
-        if product in ["releases", "experimental", "noble", "streams"]:
+        if product in SKIP_PRODUCTS:
             continue
 
-        product_url = f"{BASE_URL}/{product}/"
+        # Step 2: Every product now keeps its dailies under <series>/, so a
+        # product that never built this series simply has no such directory.
+        if series not in get_links(f"{BASE_URL}/{product}/"):
+            continue
 
-        # Step 2: Browse the product directory to find types
-        types = get_links(product_url)
+        series_url = f"{BASE_URL}/{product}/{series}/"
 
-        for type_name in types:
-            if type_name in ALLOWED_TYPES:
-                type_url = f"{product_url}{type_name}/"
+        # Step 3: Browse the series directory to find types
+        for type_name in get_links(series_url):
+            if type_name not in ALLOWED_TYPES:
+                continue
 
-                # Step 3: Browse the type directory to find serials
-                build_dirs = get_links(type_url)
+            type_url = f"{series_url}{type_name}/"
 
-                valid_serials = []
-                for build_dir in build_dirs:
-                    # 'current' and 'pending' are often symlinks, but we want the actual serial date
-                    serial = parse_serial(build_dir)
-                    if serial:
-                        valid_serials.append(
-                            {
-                                "original": build_dir,
-                                "serial": serial,
-                                "url": f"{type_url}{build_dir}",
-                            }
-                        )
+            # Step 4: Browse the type directory to find serials
+            build_dirs = get_links(type_url)
 
-                if valid_serials:
-                    # Sort by the serial tuple (Date, Version) in descending order
-                    valid_serials.sort(key=lambda x: x["serial"], reverse=True)
-                    latest_build = valid_serials[0]
-
-                    print(
-                        f"{product:<25} | {type_name:<20} | {latest_build['original']:<13} | {latest_build['url']}"
+            valid_serials = []
+            for build_dir in build_dirs:
+                # 'current' and 'pending' are often symlinks, but we want the actual serial date
+                serial = parse_serial(build_dir)
+                if serial:
+                    valid_serials.append(
+                        {
+                            "original": build_dir,
+                            "serial": serial,
+                            "url": f"{type_url}{build_dir}",
+                        }
                     )
+
+            if valid_serials:
+                # Sort by the serial tuple (Date, Version) in descending order
+                valid_serials.sort(key=lambda x: x["serial"], reverse=True)
+                latest_build = valid_serials[0]
+                found = True
+
+                print(
+                    f"{product:<25} | {type_name:<20} | {latest_build['original']:<13} | {latest_build['url']}"
+                )
     print("-" * 100)
+    if not found:
+        print(
+            f"No dailies found for series '{series}'. Check the name against "
+            f"the per-product listings on {BASE_URL}/."
+        )
+        sys.exit(1)
     print(
         "Please go check each link and verify all images while populating the milestone YAML file with the candidate serials"
+    )
+    print(
+        "NOTE: this prints the *newest* build per product/type, which is not "
+        "necessarily the *validated* one. Take the serials from the ISO "
+        "tracker and use this only to cross-check that they exist."
     )
 
 
