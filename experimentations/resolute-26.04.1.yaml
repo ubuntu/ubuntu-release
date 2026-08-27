@@ -1,28 +1,34 @@
 milestone:
   name: Ubuntu 26.04.1 LTS
-  # The final point release, unlike a snapshot/milestone, publishes with the
-  # bare 'release' status. That is what cdimage's ReleasePublisher defaults to
-  # and it is special-cased in publish_release_prefixes(): the leaf "release"
-  # yields an empty file tag, so images keep untagged names
-  # (ubuntu-26.04.1-desktop-amd64.iso, not ...-snapshot2-...).
+  # Declared once so this file can be retargeted at another series (or reused
+  # as the template for 26.04.2) by editing 'dist' alone -- the per-image
+  # commands below stay series-agnostic. It is not optional: cdimage's
+  # etc/config has DIST="${DIST:-stonking}" and for-project never sets DIST, so
+  # leaving it out would publish the development series instead of resolute.
+  dist: resolute
+  # Empty on purpose. This is the final point release, not a milestone, so
+  # publish-release gets no STATUS argument and ReleasePublisher falls back to
+  # "release" on its own (`self.status = status if status else "release"`).
+  # That fallback matters for more than the directory: publish_release_prefixes()
+  # maps a "release" leaf to an empty file tag, so images keep untagged names
+  # (ubuntu-26.04.1-desktop-amd64.iso, not ...-snapshot2-...). The 26.04.1 in
+  # that name comes from Series("resolute", ...) pointversion="26.04.1" in
+  # cdimage's config.py, so nothing here needs to spell the version out.
   #
-  # For official='named' images this lands them in
-  # <project>/releases/resolute/release/; for official='yes' images the status
-  # is unused (SimpleReleaseTree publishes straight to releases.ubuntu.com).
-  #
-  # The version comes from Series("resolute", ...) pointversion="26.04.1" in
-  # cdimage's config.py, so nothing here needs to spell out 26.04.1.
-  slug: release
-  # NOTE: the 'fix name in headers' sed that publish-image-set emits is a no-op
-  # for a final release: make_web_indices only appends " Daily Build" when the
-  # prefix equals the series name, which is never the case once the prefix is
-  # <project>-26.04.1. Running it is harmless.
+  # Set this to a milestone slug (e.g. release/snapshot-2) to publish a snapshot
+  # instead; publish-image-set substitutes it for MILESTONE_SLUG below.
+  slug:
 #
-# Serials below are the images that passed validation (green/black on the ISO
-# tracker); every one was verified present on cdimage under
-# <project>/resolute/<type>/<serial>/ with the expected per-arch artifact.
+# Serials are the images that passed validation on the ISO tracker; every one
+# was verified present on cdimage under <project>/resolute/<type>/<serial>/
+# with the expected per-arch artifact.
 #
-# The daily sources stay unnested here on purpose: ReleasePublisher.publish_release
+# Two flavours that Noble 24.04.4 shipped are absent here, dropped because no
+# candidate passed validation: ubuntu-mate (newest build 20260304) and
+# ubuntu-unity (20260826 failed). ubuntu-core-installer (20260403) is likewise
+# out. That is a real coverage regression for 26.04.1, not an oversight.
+#
+# The daily sources stay unnested on purpose: ReleasePublisher.publish_release
 # inserts the series itself (ADT-1907, cdimage bdf842cb), rewriting e.g.
 # 'daily-live' -> 'resolute/daily-live' and 'ubuntu-server/daily-live' ->
 # 'ubuntu-server/resolute/daily-live'. Spelling the series out here would

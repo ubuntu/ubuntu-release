@@ -27,6 +27,23 @@ def render_publishing_script(
     milestone: dict[str, str],
     images: dict[str, dict[str, str]],
 ):
+    # 'dist' is optional. cdimage's etc/config sets DIST="${DIST:-stonking}",
+    # i.e. it defaults to the development series, and for-project only sets
+    # PROJECT/CAPPROJECT -- it never touches DIST. A milestone for any other
+    # series must therefore say so, or every command silently publishes devel.
+    # Declaring it once here keeps the per-image commands series-agnostic, so
+    # the same image list can be reused across releases by editing one line.
+    dist = milestone.get("dist") or ""
+    dist_prefix = f"DIST={dist} " if dist else ""
+
+    # An empty 'slug' means the final release: publish-release is given no
+    # STATUS argument and ReleasePublisher falls back to "release". Mirror that
+    # fallback for the header fix -- interpolating an empty slug straight into
+    # the glob would yield '*/*HEADER.html', which would also rewrite the
+    # header of every daily build in the tree.
+    slug = milestone.get("slug") or ""
+    status = slug or "release"
+
     print("""
 ## make backup:
 cd ~/cdimage/; rm -rf www.prev; cp -al www www.prev; cd www
@@ -35,17 +52,20 @@ cd ~/cdimage/; rm -rf www.prev; cp -al www www.prev; cd www
     for image_name, image_data in images.items():
         print(f"\n# {image_name}")
         if image_data["serial"]:
-            print(
+            command = (
                 image_data["publishing_command"]
                 .replace("SERIAL", image_data["serial"])
-                .replace("MILESTONE_SLUG", milestone["slug"])
+                .replace("MILESTONE_SLUG", slug)
             )
+            # rstrip: with an empty slug the trailing MILESTONE_SLUG leaves the
+            # command ending in a stray space.
+            print(f"{dist_prefix}{command}".rstrip())
         else:
             print("# No serial set for publication, skipping")
 
     print(f"""
 ## fix name in headers:
-find full -path '*/{milestone["slug"]}*HEADER.html' | xargs sed -i 's/Daily Build/{milestone["name"]}/'
+find full -path '*/{status}*HEADER.html' | xargs sed -i 's/Daily Build/{milestone["name"]}/'
 
 ## check changes against www.prev:
 diff -u <(cd ../www.prev/full && find | sort) <(cd full && find | sort) | less
