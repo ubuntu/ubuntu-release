@@ -1,0 +1,116 @@
+milestone:
+  name: Ubuntu 24.04.5 LTS
+  # Required: cdimage's etc/config defaults DIST to the development series
+  # (stonking) and for-project never sets it. The "24.04.5" in published
+  # filenames comes from Series("noble", ...) pointversion="24.04.5" in
+  # cdimage's config.py (bumped in 11f3a700), not from anything in this file.
+  dist: noble
+  # Empty: this is the final point release, so publish-release gets no STATUS
+  # argument and ReleasePublisher falls back to "release", which also keeps
+  # filenames untagged. Set a slug only when publishing a milestone.
+  slug:
+# Netboot tarballs are not listed: publish_release copies them automatically
+# alongside each live-server image, as happened for 24.04.4.
+images:
+  edubuntu-amd64:
+    serial: "20260908.2"
+    publishing_command: ARCHES='amd64' for-project edubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  edubuntu-arm64+raspi:
+    serial: "20260908.2"
+    publishing_command: ARCHES='arm64+raspi' for-project edubuntu publish-release daily-preinstalled SERIAL preinstalled-desktop named MILESTONE_SLUG
+  kubuntu-amd64:
+    serial: "20260908.1"
+    publishing_command: ARCHES='amd64' for-project kubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  lubuntu-amd64:
+    serial: "20260908.1"
+    publishing_command: ARCHES='amd64' for-project lubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  # official='yes' for the three images that go to releases.ubuntu.com: amd64
+  # desktop, amd64 live-server and amd64 wsl (compare releases.ubuntu.com/noble/).
+  # Everything else is 'named' and stays on cdimage.ubuntu.com.
+  ubuntu-desktop-amd64:
+    serial: "20260908.1"
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release daily-live SERIAL desktop yes MILESTONE_SLUG
+  # arm64 validated on the earlier 20260908 build, not the .1 respin amd64 uses.
+  ubuntu-desktop-arm64:
+    serial: "20260908"
+    publishing_command: ARCHES='arm64' for-project ubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-desktop-arm64+raspi:
+    serial: "20260908.1"
+    publishing_command: ARCHES='arm64+raspi' for-project ubuntu publish-release daily-preinstalled SERIAL preinstalled-desktop named MILESTONE_SLUG
+  ubuntu-mini-iso-amd64:
+    serial: "20260908"
+    publishing_command: ARCHES='amd64' for-project ubuntu-mini-iso publish-release daily-live SERIAL mini-iso named MILESTONE_SLUG
+  ubuntu-base:
+    serial: "20260908"
+    publishing_command: ARCHES='amd64 arm64 armhf ppc64el riscv64 s390x' for-project ubuntu-base publish-release daily SERIAL base named MILESTONE_SLUG
+  ubuntu-budgie:
+    serial: "20260908"
+    publishing_command: ARCHES='amd64' for-project ubuntu-budgie publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-cinnamon:
+    serial: "20260908.1"
+    publishing_command: ARCHES='amd64' for-project ubuntucinnamon publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-kylin:
+    serial: "20260908.2"
+    publishing_command: ARCHES='amd64' for-project ubuntukylin publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-mate:
+    serial: "20260909"
+    publishing_command: ARCHES='amd64' for-project ubuntu-mate publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  # amd64 and arm64 preinstalled-server are new since 24.04.4, which shipped
+  # only arm64+raspi and the riscv64 family.
+  ubuntu-server-preinstalled-amd64:
+    serial: "20260908"
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named MILESTONE_SLUG
+  ubuntu-server-preinstalled-arm64:
+    serial: "20260908"
+    publishing_command: ARCHES='arm64' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named MILESTONE_SLUG
+  ubuntu-server-preinstalled-arm64+raspi:
+    serial: "20260908"
+    publishing_command: ARCHES='arm64+raspi' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named MILESTONE_SLUG
+  # Noble builds generic riscv64 plus six board variants (etc/default-arches).
+  # The tracker labels all seven tiles plain "riscv64"; all seven are 20260908.
+  ubuntu-server-preinstalled-riscv64:
+    serial: "20260908"
+    publishing_command: ARCHES='riscv64 riscv64+icicle riscv64+jh7110 riscv64+licheerv riscv64+nezha riscv64+pic64gx riscv64+unmatched' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named MILESTONE_SLUG
+  ubuntu-server-live-amd64:
+    serial: "20260909"
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server yes MILESTONE_SLUG
+  # arm64 and arm64+largemem are split here, unlike 26.04.1: they validated on
+  # different respins, so they cannot share a command.
+  ubuntu-server-live-arm64:
+    serial: "20260908.2"
+    publishing_command: ARCHES='arm64' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
+  ubuntu-server-live-arm64+largemem:
+    serial: "20260909.1"
+    publishing_command: ARCHES='arm64+largemem' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
+  ubuntu-server-live-ppc64el:
+    serial: "20260908.2"
+    publishing_command: ARCHES='ppc64el' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
+  ubuntu-server-live-riscv64:
+    serial: "20260908.3"
+    publishing_command: ARCHES='riscv64' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
+  ubuntu-server-live-s390x:
+    serial: "20260908.2"
+    publishing_command: ARCHES='s390x' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
+  # Noble's Ubuntu Studio is a DVD image: the dailies live at
+  # ubuntustudio/noble/dvd/ (not daily-live) and publish as
+  # ubuntustudio-24.04.5-dvd-amd64.iso, matching 24.04.4. Resolute and later use
+  # daily-live/desktop instead, so do not copy this entry forward.
+  ubuntu-studio:
+    serial: "20260908"
+    publishing_command: ARCHES='amd64' for-project ubuntustudio publish-release dvd SERIAL dvd named MILESTONE_SLUG
+  ubuntu-unity:
+    serial: "20260908"
+    publishing_command: ARCHES='amd64' for-project ubuntu-unity publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-wsl-amd64:
+    serial: "20260908"
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release ubuntu-wsl/daily-live SERIAL wsl yes MILESTONE_SLUG
+  ubuntu-wsl-arm64:
+    serial: "20260908"
+    publishing_command: ARCHES='arm64' for-project ubuntu publish-release ubuntu-wsl/daily-live SERIAL wsl named MILESTONE_SLUG
+  xubuntu:
+    serial: "20260908.2"
+    publishing_command: ARCHES='amd64' for-project xubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  # amd64 only: xubuntu-minimal riscv64 starts with resolute.
+  xubuntu-minimal-amd64:
+    serial: "20260908.1"
+    publishing_command: ARCHES='amd64' for-project xubuntu publish-release daily-minimal SERIAL minimal named MILESTONE_SLUG
