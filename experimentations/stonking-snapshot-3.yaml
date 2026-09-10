@@ -29,6 +29,9 @@ images:
   ubuntu-desktop-amd64:
     serial: "20260902"
     publishing_command: ARCHES='amd64' for-project ubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-desktop-amd64v3:
+    serial: "20260904"
+    publishing_command: ARCHES='amd64v3' for-project ubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
   ubuntu-desktop-arm64:
     serial: "20260902"
     publishing_command: ARCHES='arm64' for-project ubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
