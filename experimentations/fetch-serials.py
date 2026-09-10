@@ -29,7 +29,9 @@ from bs4 import BeautifulSoup
 
 # Configuration
 BASE_URL = "https://cdimage.ubuntu.com"
-ALLOWED_TYPES = {"daily", "daily-live", "daily-preinstalled", "daily-minimal"}
+# "dvd" is Ubuntu Studio on noble, which builds ubuntustudio/noble/dvd/ instead
+# of daily-live; without it that product is silently missing from the output.
+ALLOWED_TYPES = {"daily", "daily-live", "daily-preinstalled", "daily-minimal", "dvd"}
 # Directories at the root that are not products (or that have their own
 # channel-based layout, like ubuntu-core) and so have no <series>/<type>/ tree.
 SKIP_PRODUCTS = {"include", "netboot", "releases", "streams", "experimental"}
