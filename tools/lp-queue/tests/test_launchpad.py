@@ -61,7 +61,7 @@ class TestLaunchpadQueue:
     def test_default_series(self):
         """Test that the default series is set correctly."""
         lp = LaunchpadQueue()
-        assert lp.series == "resolute"
+        assert lp.series == "stonking"
 
     def test_custom_series(self):
         """Test that a custom series can be specified."""
@@ -306,9 +306,7 @@ class TestBuildAuthors:
 
     def test_sync_with_requestor(self):
         upload = MagicMock(spec=[])
-        upload.package_copy_requestor_link = (
-            "https://api.launchpad.net/devel/~sync-requester"
-        )
+        upload.package_copy_requestor_link = "https://api.launchpad.net/devel/~sync-requester"
         assert _build_authors(upload, is_sync=True) == "sync-requester"
 
     def test_sync_without_requestor(self):
@@ -317,29 +315,19 @@ class TestBuildAuthors:
 
     def test_regular_upload_signer_only(self):
         upload = MagicMock(spec=[])
-        upload.signing_key_owner_link = (
-            "https://api.launchpad.net/devel/~uploader"
-        )
+        upload.signing_key_owner_link = "https://api.launchpad.net/devel/~uploader"
         assert _build_authors(upload, is_sync=False) == "uploader"
 
     def test_regular_upload_with_sponsor(self):
         upload = MagicMock(spec=[])
-        upload.signing_key_owner_link = (
-            "https://api.launchpad.net/devel/~uploader"
-        )
-        upload.sponsor_link = (
-            "https://api.launchpad.net/devel/~sponsor-dev"
-        )
+        upload.signing_key_owner_link = "https://api.launchpad.net/devel/~uploader"
+        upload.sponsor_link = "https://api.launchpad.net/devel/~sponsor-dev"
         assert _build_authors(upload, is_sync=False) == "uploader, sponsor: sponsor-dev"
 
     def test_regular_upload_signer_equals_sponsor(self):
         upload = MagicMock(spec=[])
-        upload.signing_key_owner_link = (
-            "https://api.launchpad.net/devel/~same-person"
-        )
-        upload.sponsor_link = (
-            "https://api.launchpad.net/devel/~same-person"
-        )
+        upload.signing_key_owner_link = "https://api.launchpad.net/devel/~same-person"
+        upload.sponsor_link = "https://api.launchpad.net/devel/~same-person"
         assert _build_authors(upload, is_sync=False) == "same-person"
 
     def test_regular_upload_no_signer(self):

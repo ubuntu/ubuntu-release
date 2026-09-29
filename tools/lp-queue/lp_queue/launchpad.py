@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import subprocess
-import tempfile
 import urllib.error
 import urllib.request
 from collections.abc import Callable
@@ -11,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # Default Ubuntu series to operate on.
-DEFAULT_SERIES = "resolute"
+DEFAULT_SERIES = "stonking"
 
 # Launchpad queue status strings expected by the API.
 QUEUE_STATUS_NEW = "New"
@@ -71,6 +70,7 @@ class LaunchpadQueue:
 
         Args:
             callback: A callable that accepts a single log-message string.
+
         """
         self._log_callback = callback
 
