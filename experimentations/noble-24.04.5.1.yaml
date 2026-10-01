@@ -1,0 +1,15 @@
+milestone:
+  name: Ubuntu 24.04.5.1 LTS
+  dist: noble
+  slug:
+# Desktop amd64 respin of 24.04.5. The original ubuntu-24.04.5-desktop-amd64.iso
+# was pulled from releases.ubuntu.com on 2026-09-11; every other 24.04.5 image
+# is still published and stays at 24.04.5, so this file deliberately contains
+# exactly one entry.
+#
+images:
+  # official='yes' -- desktop amd64 is one of the three images that go to
+  # releases.ubuntu.com, which is where the withdrawn image needs replacing.
+  ubuntu-desktop-amd64:
+    serial: "20260914"
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release daily-live SERIAL desktop yes MILESTONE_SLUG
