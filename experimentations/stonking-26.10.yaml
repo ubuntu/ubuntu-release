@@ -1,0 +1,145 @@
+milestone:
+  name: Ubuntu 26.10
+  # Spelled out even though cdimage's etc/config already defaults to it
+  # (DIST="${DIST:-stonking}"): the commands then say which series they publish
+  # instead of relying on whatever the deployed default is.
+  dist: stonking
+  # Empty on purpose. This is the final release, not a milestone, so
+  # publish-release gets no STATUS argument and ReleasePublisher falls back to
+  # "release" on its own. Images therefore land in
+  # <project>/releases/stonking/release/, next to the snapshot-1..4
+  # subdirectories already there, and publish_release_prefixes() maps the
+  # "release" leaf to an empty file tag, so filenames are untagged
+  # (ubuntu-26.10-desktop-amd64.iso, not ...-beta-...). The 26.10 comes from
+  # Series("stonking", "26.10", ...) in cdimage's config.py.
+  #
+  # Publishing as "release" also drops the beta/ torrent tree (every status
+  # other than the first component of this one goes); see
+  # ReleasePublisher.publish_release.
+  slug:
+#
+# Serials are the ones shown on the Test Observer dashboard (2026-10-15), i.e.
+# the build that produced each image. Every one is the first serial with that
+# image's hash, and is what both 'current' and 'pending' point at. Later
+# directories (ubuntu 20261012.1 / 20261013, ubuntu-base 20261012.1 /
+# 20261012.3, ubuntu-server 20261012 / 20261012.1, xubuntu-minimal 20261014)
+# only hold byte-identical carry-overs of the other arches, never a newer build
+# of the same one.
+#
+# 37 artifacts are released, all approved on Test Observer. That includes the
+# six held back at Beta, now reinstated: ubuntu desktop riscv64 and
+# arm64+raspi, ubuntu-mini-iso amd64, preinstalled-server arm64+raspi and
+# riscv64, and xubuntu-minimal riscv64. The commented-out entry
+# (ubuntu-core-installer) is NOT part of the release; its serial is kept so it
+# can be reinstated by uncommenting it.
+#
+# 'yes' publishes to releases.ubuntu.com and applies to exactly three images:
+# amd64 desktop, amd64 live-server, amd64 wsl, the same set as 25.10 and 26.04
+# (compare releases.ubuntu.com/25.10/ and /26.04/). Everything else is 'named'
+# (cdimage.ubuntu.com only), including desktop amd64v3.
+images:
+  edubuntu-amd64:
+    serial: "20261014"
+    publishing_command: ARCHES='amd64' for-project edubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  edubuntu-arm64+raspi:
+    serial: "20261010"
+    publishing_command: ARCHES='arm64+raspi' for-project edubuntu publish-release daily-preinstalled SERIAL preinstalled-desktop named MILESTONE_SLUG
+  kubuntu-amd64:
+    serial: "20261013"
+    publishing_command: ARCHES='amd64' for-project kubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  lubuntu-amd64:
+    serial: "20261013"
+    publishing_command: ARCHES='amd64' for-project lubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-desktop-amd64:
+    serial: "20261013"
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release daily-live SERIAL desktop yes MILESTONE_SLUG
+  ubuntu-desktop-amd64v3:
+    serial: "20261010"
+    publishing_command: ARCHES='amd64v3' for-project ubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-desktop-arm64:
+    serial: "20261010"
+    publishing_command: ARCHES='arm64' for-project ubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-desktop-arm64+raspi:
+    serial: "20261010"
+    publishing_command: ARCHES='arm64+raspi' for-project ubuntu publish-release daily-preinstalled SERIAL preinstalled-desktop named MILESTONE_SLUG
+  ubuntu-desktop-riscv64:
+    serial: "20261012.1"
+    publishing_command: ARCHES='riscv64' for-project ubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-mini-iso-amd64:
+    serial: "20261010"
+    publishing_command: ARCHES='amd64' for-project ubuntu-mini-iso publish-release daily-live SERIAL mini-iso named MILESTONE_SLUG
+  # ubuntu-base was respun per arch, so unlike the Beta it can't go out as one
+  # six-arch command: arches are grouped only where the dashboard serial is
+  # the same.
+  ubuntu-base-amd64:
+    serial: "20261010"
+    publishing_command: ARCHES='amd64' for-project ubuntu-base publish-release daily SERIAL base named MILESTONE_SLUG
+  ubuntu-base-arm64-s390x:
+    serial: "20261012"
+    publishing_command: ARCHES='arm64 s390x' for-project ubuntu-base publish-release daily SERIAL base named MILESTONE_SLUG
+  ubuntu-base-armhf-ppc64el:
+    serial: "20261012.1"
+    publishing_command: ARCHES='armhf ppc64el' for-project ubuntu-base publish-release daily SERIAL base named MILESTONE_SLUG
+  ubuntu-base-riscv64:
+    serial: "20261012.3"
+    publishing_command: ARCHES='riscv64' for-project ubuntu-base publish-release daily SERIAL base named MILESTONE_SLUG
+  ubuntu-budgie:
+    serial: "20261010"
+    publishing_command: ARCHES='amd64' for-project ubuntu-budgie publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-cinnamon:
+    serial: "20261013"
+    publishing_command: ARCHES='amd64' for-project ubuntucinnamon publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-kylin:
+    serial: "20261014"
+    publishing_command: ARCHES='amd64' for-project ubuntukylin publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-mate:
+    serial: "20261013"
+    publishing_command: ARCHES='amd64' for-project ubuntu-mate publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-server-preinstalled-amd64:
+    serial: "20261010"
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named MILESTONE_SLUG
+  ubuntu-server-preinstalled-arm64:
+    serial: "20261012"
+    publishing_command: ARCHES='arm64' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named MILESTONE_SLUG
+  ubuntu-server-preinstalled-arm64+raspi:
+    serial: "20261012"
+    publishing_command: ARCHES='arm64+raspi' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named MILESTONE_SLUG
+  ubuntu-server-preinstalled-riscv64:
+    serial: "20261012.1"
+    publishing_command: ARCHES='riscv64' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named MILESTONE_SLUG
+  ubuntu-server-live-amd64:
+    serial: "20261010"
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server yes MILESTONE_SLUG
+  ubuntu-server-live-arm64:
+    serial: "20261010"
+    publishing_command: ARCHES='arm64 arm64+largemem' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
+  ubuntu-server-live-ppc64el:
+    serial: "20261012"
+    publishing_command: ARCHES='ppc64el' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
+  ubuntu-server-live-riscv64:
+    serial: "20261012.1"
+    publishing_command: ARCHES='riscv64' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
+  ubuntu-server-live-s390x:
+    serial: "20261012"
+    publishing_command: ARCHES='s390x' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
+  ubuntu-studio:
+    serial: "20261014"
+    publishing_command: ARCHES='amd64' for-project ubuntustudio publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-unity:
+    serial: "20261013"
+    publishing_command: ARCHES='amd64' for-project ubuntu-unity publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-wsl-amd64:
+    serial: "20261010"
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release ubuntu-wsl/daily-live SERIAL wsl yes MILESTONE_SLUG
+  ubuntu-wsl-arm64:
+    serial: "20261010"
+    publishing_command: ARCHES='arm64' for-project ubuntu publish-release ubuntu-wsl/daily-live SERIAL wsl named MILESTONE_SLUG
+  xubuntu:
+    serial: "20261014"
+    publishing_command: ARCHES='amd64' for-project xubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  xubuntu-minimal-amd64:
+    serial: "20261014"
+    publishing_command: ARCHES='amd64' for-project xubuntu publish-release daily-minimal SERIAL minimal named MILESTONE_SLUG
+  xubuntu-minimal-riscv64:
+    serial: "20261012.1"
+    publishing_command: ARCHES='riscv64' for-project xubuntu publish-release daily-minimal SERIAL minimal named MILESTONE_SLUG
