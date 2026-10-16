@@ -1,0 +1,45 @@
+[project]
+name = "lp-queue"
+version = "0.1.0"
+description = "A TUI tool for managing the Ubuntu Launchpad upload queue"
+requires-python = ">=3.10"
+dependencies = [
+    "launchpadlib",
+    "textual>=3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+    "textual-dev",
+]
+
+[project.scripts]
+lp-queue = "lp_queue.app:main"
+
+[tool.ruff]
+line-length = 99
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "C", "N", "D", "I001"]
+extend-ignore = [
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D107",
+    "D203",
+    "D213",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+log_cli_level = "INFO"
+asyncio_mode = "auto"
