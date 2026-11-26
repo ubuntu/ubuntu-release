@@ -1,0 +1,154 @@
+milestone:
+  name: Snapshot 1
+  # Spelled out even though cdimage's etc/config already defaults to it
+  # (DIST="${DIST:-tenacious}" since 48b2425e "Welcome Tenacious!"): the
+  # commands then say which series they publish instead of relying on whatever
+  # the deployed default is.
+  dist: tenacious
+  # Nest milestones under a 'release/' parent so they land at
+  # <project>/releases/tenacious/release/snapshot-1/ (matching the standard
+  # releases/<series>/release/ layout, and where stonking's snapshot-1..4 are)
+  # instead of directly under releases/tenacious/. The 'release/' prefix is
+  # consumed as the publish 'status' (the trailing arg to publish-release),
+  # which becomes the target directory; see cdimage
+  # FullReleasePublisher.target_dir. This is the first tenacious publish:
+  # publish-release creates releases/tenacious/ and the releases/27.04 link
+  # itself.
+  #
+  # The leaf ('snapshot-1') is also the filename tag, so images publish as
+  # e.g. kubuntu-27.04-snapshot1-desktop-amd64.iso. Only an exact 'release'
+  # leaf is untagged; see publish_release_prefixes().
+  slug: release/snapshot-1
+
+# 33 artifacts have a serial. 4 have never built for tenacious and have an
+# empty serial, which publish-image-set skips: ubuntu desktop riscv64 and the
+# three arm64+raspi images (see the comments on each).
+#
+# OVERSIZED (not blocking, same 9 as the stonking final): ubuntu amd64 and
+# amd64v3, edubuntu, kubuntu, lubuntu, kylin, studio, unity, xubuntu.
+images:
+  edubuntu-amd64:
+    serial: "20261126"
+    publishing_command: ARCHES='amd64' for-project edubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  # No tenacious build: edubuntu/tenacious/daily-preinstalled/ does not exist.
+  # 20261126 failed in the pi-gadget step with "cp: cannot stat
+  # 'configs/tenacious-arm64-desktop/*'" (gadget not opened for tenacious).
+  edubuntu-arm64+raspi:
+    serial:
+    publishing_command: ARCHES='arm64+raspi' for-project edubuntu publish-release daily-preinstalled SERIAL preinstalled-desktop named MILESTONE_SLUG
+  kubuntu-amd64:
+    serial: "20261126"
+    publishing_command: ARCHES='amd64' for-project kubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  # Last good build: nothing newer has published. 20261125 failed on unmet
+  # dependencies (cloud-init, linux-generic 7.3.0-9.9).
+  lubuntu-amd64:
+    serial: "20261118"
+    publishing_command: ARCHES='amd64' for-project lubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  # 20261126 amd64/amd64v3/arm64 built on Launchpad, but cdimage publishes the
+  # set only after riscv64, which was still queued when this was written.
+  ubuntu-desktop-amd64:
+    serial: "20261125"
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-desktop-amd64v3:
+    serial: "20261125"
+    publishing_command: ARCHES='amd64v3' for-project ubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-desktop-arm64:
+    serial: "20261125"
+    publishing_command: ARCHES='arm64' for-project ubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  # No tenacious build: ubuntu/tenacious/daily-preinstalled/ does not exist.
+  # 20261125 hit the same pi-gadget failure as edubuntu (no
+  # configs/tenacious-arm64-desktop).
+  ubuntu-desktop-arm64+raspi:
+    serial:
+    publishing_command: ARCHES='arm64+raspi' for-project ubuntu publish-release daily-preinstalled SERIAL preinstalled-desktop named MILESTONE_SLUG
+  # No tenacious build: none of the retained daily-live directories
+  # (20261120-20261125) has a riscv64 image. 20261125 failed in debootstrap
+  # ("Couldn't download packages" from ftpmaster.internal); 20261126 is still
+  # waiting for a riscv64 builder.
+  ubuntu-desktop-riscv64:
+    serial:
+    publishing_command: ARCHES='riscv64' for-project ubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-mini-iso-amd64:
+    serial: "20261126"
+    publishing_command: ARCHES='amd64' for-project ubuntu-mini-iso publish-release daily-live SERIAL mini-iso named MILESTONE_SLUG
+  ubuntu-base:
+    serial: "20261125"
+    publishing_command: ARCHES='amd64 arm64 armhf ppc64el riscv64 s390x' for-project ubuntu-base publish-release daily SERIAL base named MILESTONE_SLUG
+  ubuntu-budgie:
+    serial: "20261125"
+    publishing_command: ARCHES='amd64' for-project ubuntu-budgie publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-cinnamon:
+    serial: "20261126"
+    publishing_command: ARCHES='amd64' for-project ubuntucinnamon publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  # Last good build: nothing newer has published. 20261125 failed on unmet
+  # dependencies (cloud-init, linux-generic 7.3.0-9.9).
+  ubuntu-kylin:
+    serial: "20261117"
+    publishing_command: ARCHES='amd64' for-project ubuntukylin publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-mate:
+    serial: "20261126"
+    publishing_command: ARCHES='amd64' for-project ubuntu-mate publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-server-preinstalled-amd64:
+    serial: "20261126"
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named MILESTONE_SLUG
+  ubuntu-server-preinstalled-arm64:
+    serial: "20261126"
+    publishing_command: ARCHES='arm64' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named MILESTONE_SLUG
+  # No tenacious build: no daily-preinstalled SHA256SUMS lists an arm64+raspi
+  # image. 20261126 failed in the pi-gadget step (no
+  # configs/tenacious-arm64-server).
+  ubuntu-server-preinstalled-arm64+raspi:
+    serial:
+    publishing_command: ARCHES='arm64+raspi' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named MILESTONE_SLUG
+  # Neither 20261125 nor 20261126 built riscv64 (20261126 failed in
+  # debootstrap with download errors); both directories carry 20261124's
+  # image.
+  ubuntu-server-preinstalled-riscv64:
+    serial: "20261124"
+    publishing_command: ARCHES='riscv64' for-project ubuntu publish-release ubuntu-server/daily-preinstalled SERIAL preinstalled-server named MILESTONE_SLUG
+  # live-server was respun per arch: 20261125 built only amd64 and riscv64,
+  # 20261126 only amd64 and arm64. arm64 and arm64+largemem therefore have
+  # different serials and can't share one ARCHES='arm64 arm64+largemem'
+  # command the way the stonking snapshots did.
+  ubuntu-server-live-amd64:
+    serial: "20261126"
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
+  ubuntu-server-live-arm64:
+    serial: "20261126"
+    publishing_command: ARCHES='arm64' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
+  ubuntu-server-live-arm64+largemem:
+    serial: "20261124"
+    publishing_command: ARCHES='arm64+largemem' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
+  ubuntu-server-live-ppc64el:
+    serial: "20261124"
+    publishing_command: ARCHES='ppc64el' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
+  ubuntu-server-live-riscv64:
+    serial: "20261125"
+    publishing_command: ARCHES='riscv64' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
+  ubuntu-server-live-s390x:
+    serial: "20261124"
+    publishing_command: ARCHES='s390x' for-project ubuntu publish-release ubuntu-server/daily-live SERIAL live-server named MILESTONE_SLUG
+  ubuntu-studio:
+    serial: "20261125"
+    publishing_command: ARCHES='amd64' for-project ubuntustudio publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  # Last good build and the only retained directory: nothing newer has
+  # published. 20261126 failed on unmet dependencies (libavcodec63,
+  # linux-generic 7.3.0-9.9).
+  ubuntu-unity:
+    serial: "20261118"
+    publishing_command: ARCHES='amd64' for-project ubuntu-unity publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  ubuntu-wsl-amd64:
+    serial: "20261126"
+    publishing_command: ARCHES='amd64' for-project ubuntu publish-release ubuntu-wsl/daily-live SERIAL wsl named MILESTONE_SLUG
+  ubuntu-wsl-arm64:
+    serial: "20261126"
+    publishing_command: ARCHES='arm64' for-project ubuntu publish-release ubuntu-wsl/daily-live SERIAL wsl named MILESTONE_SLUG
+  xubuntu:
+    serial: "20261126"
+    publishing_command: ARCHES='amd64' for-project xubuntu publish-release daily-live SERIAL desktop named MILESTONE_SLUG
+  xubuntu-minimal-amd64:
+    serial: "20261125"
+    publishing_command: ARCHES='amd64' for-project xubuntu publish-release daily-minimal SERIAL minimal named MILESTONE_SLUG
+  xubuntu-minimal-riscv64:
+    serial: "20261125"
+    publishing_command: ARCHES='riscv64' for-project xubuntu publish-release daily-minimal SERIAL minimal named MILESTONE_SLUG
